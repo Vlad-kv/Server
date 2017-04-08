@@ -1,69 +1,7 @@
-#ifndef SOCKETS_WRAPPER
-#define SOCKETS_WRAPPER
+#include "sockets_wrapper.h"
 
-#include <sstream>
-#include <string>
-#include <winsock2.h>
-#include <memory>
-
-using namespace std;
-
-namespace patch {
-    template <typename T>
-    string to_string(const T& n) {
-        ostringstream stm;
-        stm << n;
-        return stm.str();
-    }
-}
-
-class socket_exception {
-	public:
-	string mess;
-	
-	socket_exception(string mess)
-	: mess(mess) {
-	}
-};
-
-class socket_descriptor {
-	int sd;
-	
-	socket_descriptor(socket_descriptor &to_move) {
-	}
-public:
-	class socket_descriptor_exception {
-	};
-	
-	socket_descriptor(int sd)
-	: sd(sd) {
-	}
-	
-	socket_descriptor(socket_descriptor &&to_move) 
-	: sd(to_move.sd) {
-		to_move.sd = -1;
-	}
-	
-	int get_sd() const {
-		return sd;
-	}
-	
-	void close() {
-		if (sd == INVALID_SOCKET) {
-			return;
-		}
-		int res = ::closesocket(sd);
-		if (res == -1) {
-			cout << "Error when closing sd " << sd << " : " << res << "\n";
-			throw new socket_descriptor_exception;
-		}
-		sd = INVALID_SOCKET;
-	}
-	
-	~socket_descriptor() {
-		close();
-	}
-};
+const int BUFFER_SIZE = 1024;
+char buffer[BUFFER_SIZE];
 
 socket_descriptor create_socket(int af, int type, int protocol) {
 	int res = socket(af, type, protocol);
@@ -116,20 +54,22 @@ void send_to_socket(const socket_descriptor& sock, string mess) {
 	}
 }
 
-class WSA_holder {
-	public:
-	WSAData wsaData;
+string receive_from_socket(const socket_descriptor& sock) {
+	string result;
 	
-	WSA_holder(WORD version) {
-		int res = WSAStartup(MAKEWORD(2, 2), &wsaData);
-    	if (res != 0) {
-			throw new socket_exception("WSAStartup failed " + patch::to_string(res) + "\n");
-    	}
-	}
+	int received_bytes;
 	
-	~WSA_holder() {
-		WSACleanup();
-	}
-};
-
-#endif // SOCKETS_WRAPPER
+	do {
+		received_bytes = recv(sock.get_sd(), buffer, BUFFER_SIZE, 0);
+		
+		cout << "Received bytes - " << received_bytes << " : ";
+		
+		for (int w = 0; w < received_bytes; w++) {
+			result.push_back(buffer[w]);
+			cout << buffer[w];
+		}
+		cout << "\n";
+	} while (received_bytes > 0);
+	
+	return result;
+}

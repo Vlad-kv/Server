@@ -10,10 +10,6 @@ using namespace std;
 
 const char* MAIN_SOCKET_ADDRES = "127.0.0.1";
 
-
-const int BUFFER_SIZE = 1024;
-char buffer[BUFFER_SIZE];
-
 int main() {
     WSA_holder wsa_holder(MAKEWORD(2, 2));
     
@@ -30,18 +26,29 @@ int main() {
 		
 		cout << "Connect to socket " << client.get_sd() << "\n";
 		
-		int received_bytes;
+		string received_data;
 		
-		do {
-			received_bytes = recv(client.get_sd(), buffer, BUFFER_SIZE, 0);
-			
-			cout << "Received bytes - " << received_bytes << " : ";
-			
-			for (int w = 0; w < received_bytes; w++) {
-				cout << buffer[w];
-			}
-			cout << "\n";
-		} while (received_bytes > 0);
+//		
+//		
+//		int received_bytes;
+//		
+//		do {
+//			received_bytes = recv(client.get_sd(), buffer, BUFFER_SIZE, 0);
+//			
+//			cout << "Received bytes - " << received_bytes << " : ";
+//			
+//			for (int w = 0; w < received_bytes; w++) {
+//				cout << buffer[w];
+//			}
+//			cout << "\n";
+//		} while (received_bytes > 0);
+//		
+		
+		received_data = receive_from_socket(client);
+		
+		cout << received_data << "\n";
+		
+		send(client.get_sd(), &received_data[0], received_data.size(), 0);
 		
 		cout << "Close connection.\n";
     }

@@ -5,6 +5,8 @@
 #include <sstream>
 #include <string>
 #include <winsock2.h>
+#include <windows.h>
+#include <WinBase.h>
 #include <memory>
 
 using namespace std;
@@ -28,7 +30,7 @@ class socket_exception {
 };
 
 class socket_descriptor {
-	int sd;
+	unsigned int sd;
 	
 	socket_descriptor(socket_descriptor &to_move) {
 	}
@@ -45,7 +47,7 @@ public:
 		to_move.sd = -1;
 	}
 	
-	int get_sd() const {
+	unsigned int get_sd() const {
 		return sd;
 	}
 	
@@ -53,6 +55,7 @@ public:
 		if (sd == INVALID_SOCKET) {
 			return;
 		}
+		cout << "Closing socket : " << sd << "\n";
 		int res = ::closesocket(sd);
 		if (res == -1) {
 			std::cout << "Error when closing sd " << sd << " : " << res << "\n";
@@ -92,6 +95,93 @@ class WSA_holder {
 	~WSA_holder() {
 		WSACleanup();
 	}
+};
+
+class IO_completion_port {
+	HANDLE iocp_handle;
+	
+public:
+	IO_completion_port(HANDLE handle)
+	: iocp_handle(handle) {
+	}
+	
+	IO_completion_port(IO_completion_port &&port)
+	: iocp_handle(port.iocp_handle) {
+		port.iocp_handle = NULL;
+	}
+	
+	HANDLE get_handle() {
+		return iocp_handle;
+	}
+	
+	~IO_completion_port() {
+		if (iocp_handle != NULL) {
+			cout << "~~~~~~~~~~~~~\n";
+			BOOL res = CloseHandle(iocp_handle);
+			if (res == 0) {
+				throw new socket_exception("Error in closing completion port : " + patch::to_string(GetLastError()));
+			}
+		}
+	}
+};
+
+class my_completion_key {
+public:
+	socket_descriptor sd;
+	// TODO
+	
+	
+	my_completion_key(socket_descriptor &&sd) 
+	: sd(std::move(sd)) {
+	}
+	
+};
+
+class additional_info {
+public:
+	OVERLAPPED overlapped;
+	
+	WSABUF data_buff;
+	
+	char *buffer;
+	
+	DWORD received_bytes; // long unsigned int
+	DWORD sended_bytes;
+	int buff_size;
+	
+	static additional_info* create(int buff_size) {
+		
+		additional_info* result = (additional_info*)GlobalAlloc(GPTR, sizeof(additional_info));
+		if (result == NULL) {
+			throw new socket_exception("GlobalAlloc failed with error : " + patch::to_string(GetLastError()) + "\n");
+		}
+		
+		result->buffer = (char*)GlobalAlloc(GPTR, buff_size);
+		
+		if (result->buffer == NULL) {
+			GlobalFree(result);
+			throw new socket_exception("GlobalAlloc failed with error : " + patch::to_string(GetLastError()) + "\n");
+		}
+		
+		result->buff_size = buff_size;
+		
+		result->clear();
+		return result;
+	}
+	
+	void clear() {
+		ZeroMemory(&overlapped, sizeof(OVERLAPPED));
+		received_bytes = sended_bytes = 0;
+		
+		data_buff.len = buff_size;
+		data_buff.buf = buffer;
+	}
+	
+	static void destroy(additional_info* obj) {
+		GlobalFree(obj->buffer);
+		GlobalFree(obj);
+	}
+	
 };
 
 #endif // SOCKETS_WRAPPER

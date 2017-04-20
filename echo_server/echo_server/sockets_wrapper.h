@@ -9,15 +9,15 @@
 #include <WinBase.h>
 #include <memory>
 
+#include "../echo_server_and_IOCP/logger.h"
+
 using namespace std;
 
-namespace patch {
-    template <typename T>
-    string to_string(const T& n) {
-        ostringstream stm;
-        stm << n;
-        return stm.str();
-    }
+template <typename T>
+string to_str(const T& n) {
+	ostringstream stm;
+	stm << n;
+	return stm.str();
 }
 
 class socket_exception {
@@ -26,6 +26,7 @@ class socket_exception {
 	
 	socket_exception(string mess)
 	: mess(mess) {
+		LOG(mess);
 	}
 };
 
@@ -37,6 +38,10 @@ class socket_descriptor {
 public:
 	class socket_descriptor_exception {
 	};
+	
+	socket_descriptor()
+	: sd(INVALID_SOCKET) {
+	}
 	
 	socket_descriptor(int sd)
 	: sd(sd) {
@@ -55,10 +60,10 @@ public:
 		if (sd == INVALID_SOCKET) {
 			return;
 		}
-		cout << "Closing socket : " << sd << "\n";
+		LOG("Closing socket : " << sd << "\n");
 		int res = ::closesocket(sd);
 		if (res == -1) {
-			std::cout << "Error when closing sd " << sd << " : " << res << "\n";
+			LOG("Error when closing sd " << sd << " : " << res << "\n");
 			throw new socket_descriptor_exception;
 		}
 		sd = INVALID_SOCKET;
@@ -66,6 +71,21 @@ public:
 	
 	~socket_descriptor() {
 		close();
+	}
+	
+	socket_descriptor& operator=(socket_descriptor&& socket_d) {
+		close();
+		
+		sd = socket_d.sd;
+		socket_d.sd = INVALID_SOCKET;
+		return *this;
+	}
+	
+	friend bool operator==(const socket_descriptor& sd_1, const socket_descriptor& sd_2) {
+		return (sd_1.sd == sd_2.sd);
+	}
+	friend bool operator!=(const socket_descriptor& sd_1, const socket_descriptor& sd_2) {
+		return (sd_1.sd != sd_2.sd);
 	}
 };
 
@@ -79,6 +99,8 @@ void connect_to_socket(const socket_descriptor& connectSocket, short family, u_l
 
 void send_to_socket(const socket_descriptor& sock, string mess);
 
+void blocking_send(const socket_descriptor& sock, string mess);
+
 string receive_from_socket(const socket_descriptor& sock);
 
 class WSA_holder {
@@ -88,7 +110,7 @@ class WSA_holder {
 	WSA_holder(WORD version) {
 		int res = WSAStartup(MAKEWORD(2, 2), &wsaData);
     	if (res != 0) {
-			throw new socket_exception("WSAStartup failed " + patch::to_string(res) + "\n");
+			throw new socket_exception("WSAStartup failed " + to_str(res) + "\n");
     	}
 	}
 	
@@ -116,10 +138,10 @@ public:
 	
 	~IO_completion_port() {
 		if (iocp_handle != NULL) {
-			cout << "~~~~~~~~~~~~~\n";
+			LOG("~~~~~~~~~~~~~\n");
 			BOOL res = CloseHandle(iocp_handle);
 			if (res == 0) {
-				throw new socket_exception("Error in closing completion port : " + patch::to_string(GetLastError()));
+				throw new socket_exception("Error in closing completion port : " + to_str(GetLastError()));
 			}
 		}
 	}
@@ -149,24 +171,9 @@ public:
 	DWORD sended_bytes;
 	int buff_size;
 	
-	static additional_info* create(int buff_size) {
-		
-		additional_info* result = (additional_info*)GlobalAlloc(GPTR, sizeof(additional_info));
-		if (result == NULL) {
-			throw new socket_exception("GlobalAlloc failed with error : " + patch::to_string(GetLastError()) + "\n");
-		}
-		
-		result->buffer = (char*)GlobalAlloc(GPTR, buff_size);
-		
-		if (result->buffer == NULL) {
-			GlobalFree(result);
-			throw new socket_exception("GlobalAlloc failed with error : " + patch::to_string(GetLastError()) + "\n");
-		}
-		
-		result->buff_size = buff_size;
-		
-		result->clear();
-		return result;
+	additional_info(int buff_size) 
+	: buffer(new char[buff_size]), buff_size(buff_size) {
+		clear();
 	}
 	
 	void clear() {
@@ -177,11 +184,9 @@ public:
 		data_buff.buf = buffer;
 	}
 	
-	static void destroy(additional_info* obj) {
-		GlobalFree(obj->buffer);
-		GlobalFree(obj);
+	~additional_info() {
+		delete [] buffer;
 	}
-	
 };
 
 #endif // SOCKETS_WRAPPER

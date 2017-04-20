@@ -1,5 +1,7 @@
 #include <iostream>
 #include <thread>
+#include <iomanip>
+#include <ctime>
 #include <chrono>
 
 #include "../echo_server/sockets_wrapper.h"
@@ -8,6 +10,10 @@ using namespace std;
 const char* MAIN_SOCKET_ADDRES = "127.0.0.1";
 
 int main() {
+	
+//	std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+//	cout << std::chrono::duration_cast<std::chrono::microseconds>(now).count() << "\n";
+	
 	{
 		WSA_holder wsa_holder(MAKEWORD(2, 2));
 		
@@ -21,14 +27,24 @@ int main() {
 			test += "w";
 		}
 		
-//		send_to_socket(client, test);
+		int res;
 		
-		int res = send(client.get_sd(), &test[0], test.length(), 0);
-		
-		if (res == SOCKET_ERROR) {
-			cout << "Error in sending data " << WSAGetLastError() << "\n";
-			return 0;
+		for (int w = 0; w < 10; w++) {
+			Sleep(1000);
+			
+//			send_to_socket(client, test);
+			
+			blocking_send(client, test);
+			
+			cout << "--\n";
+			
+			if (res == SOCKET_ERROR) {
+				cout << "Error in sending data " << WSAGetLastError() << "\n";
+				return 0;
+			}
 		}
+		
+		Sleep(1000);
 		
 		res = shutdown(client.get_sd(), SD_SEND);
 		if (res == SOCKET_ERROR) {
@@ -36,13 +52,12 @@ int main() {
 			return 0;
 		}
 		
-		cout << "Sended bytes : " << res << "\n";
-		
+		Sleep(1000);
 		string result = receive_from_socket(client);
 		
 		cout << "result : " << result << "\n";
 	}
 	
-	Sleep(2000);
+	Sleep(5000);
     return 0;
 }

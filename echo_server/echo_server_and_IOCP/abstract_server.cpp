@@ -13,19 +13,25 @@ DWORD WINAPI WorkingThread(LPVOID start_info) {
 	
 	delete mess;
 	
-	DWORD received_bytes;
+	DWORD transmited_bytes;
 	
 	my_completion_key *received_key;
 	additional_info *data;
+	my_OVERLAPED *overlaped;
 	
 	while (1) {
-		if (GetQueuedCompletionStatus(iocp, &received_bytes, (LPDWORD)&received_key, 
-										(LPOVERLAPPED *)&data, 500) == 0) {
-			if (GetLastError() == 258) {
-				LOG("-");
-				continue;
-			}
-			LOG("\n");
+		int res = GetQueuedCompletionStatus(iocp, &transmited_bytes, (LPDWORD)&received_key, 
+										(LPOVERLAPPED *)&overlaped, 500);
+		if ((res == 0) && (GetLastError() == 258)) {
+			LOG("-");
+			continue;
+		}
+		LOG("\n");
+		
+		data = overlaped->info;
+		delete overlaped;
+		
+		if (res == 0) {
 			if (GetLastError() == 64) {
 				LOG("connection interrupted\n");
 				LOG(received_key->sd.get_sd() << "\n");
@@ -37,28 +43,14 @@ DWORD WINAPI WorkingThread(LPVOID start_info) {
 			LOG("Error in GetQueuedCompletionStatus : " << GetLastError() << "\n");
 			return 0;
 		}
-		LOG("\n");
-		
-//		cout << received_key->sd.get_sd() << "\n";
-		
-		if (received_bytes == 0) {
-			free_data(received_key, data);
+		if (data->get_operation_type() == additional_info::RECV_KEY) {
+			server->on_recv_completion(received_key, data, transmited_bytes);
 			continue;
 		}
-		
-		if (data->received_bytes == 0) {
-			data->received_bytes = received_bytes;
-		} else {
-			data->sended_bytes += received_bytes;
+		if (data->get_operation_type() == additional_info::SEND_KEY) {
+			server->on_send_completion(received_key, data, transmited_bytes);
+			continue;
 		}
-		
-		if (data->sended_bytes < data->received_bytes) {
-			data->data_buff.buf = data->buffer + data->sended_bytes;
-			data->data_buff.len = data->received_bytes - data->sended_bytes;
-			
-			server->send(received_key, data);
-		} else {
-			server->recv(received_key, data);
-		}
+		throw new socket_exception("Unknown operation.");
 	}
 }

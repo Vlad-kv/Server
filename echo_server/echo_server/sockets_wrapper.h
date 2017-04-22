@@ -9,6 +9,8 @@
 #include <WinBase.h>
 #include <memory>
 
+#include <cstddef>
+
 #include "../echo_server_and_IOCP/logger.h"
 
 using namespace std;
@@ -141,7 +143,7 @@ public:
 			LOG("~~~~~~~~~~~~~\n");
 			BOOL res = CloseHandle(iocp_handle);
 			if (res == 0) {
-				throw new socket_exception("Error in closing completion port : " + to_str(GetLastError()));
+				LOG("Error in closing completion port : " + to_str(GetLastError()));
 			}
 		}
 	}
@@ -161,31 +163,53 @@ public:
 
 class additional_info {
 public:
-	OVERLAPPED overlapped;
+	
+	static int NO_OPERATION_KEY, RECV_KEY, SEND_KEY;
+	
+//	OVERLAPPED overlapped;
 	
 	WSABUF data_buff;
 	
 	char *buffer;
+	int buff_size;
+	
+	int last_operation_type;
 	
 	DWORD received_bytes; // long unsigned int
 	DWORD sended_bytes;
-	int buff_size;
+	
 	
 	additional_info(int buff_size) 
 	: buffer(new char[buff_size]), buff_size(buff_size) {
 		clear();
 	}
 	
+	int get_operation_type() {
+		return last_operation_type;
+	}
+	
 	void clear() {
-		ZeroMemory(&overlapped, sizeof(OVERLAPPED));
+//		ZeroMemory(&overlapped, sizeof(OVERLAPPED));
 		received_bytes = sended_bytes = 0;
 		
 		data_buff.len = buff_size;
 		data_buff.buf = buffer;
+		
+		last_operation_type = NO_OPERATION_KEY;
 	}
 	
 	~additional_info() {
 		delete [] buffer;
+	}
+};
+
+struct my_OVERLAPED {
+	OVERLAPPED overlapped;
+	additional_info* info;
+	
+	my_OVERLAPED(additional_info* info)
+	: info(info) {
+		SecureZeroMemory((PVOID) &overlapped, sizeof(OVERLAPPED));
 	}
 };
 

@@ -16,8 +16,6 @@ class abstract_server {
 	int port;
 	int num_of_working_threads;
 	
-	size_t buffer_size;
-	
 	socket_descriptor main_socket;
 	
 	struct mess_to_working_thread {
@@ -32,9 +30,9 @@ class abstract_server {
 public:
 	
 	abstract_server(string addres_of_main_socket, int address_family, int type, int protocol, int port,
-					int num_of_working_threads, size_t buffer_size = 1024) 
+					int num_of_working_threads) 
 	: addres_of_main_socket(addres_of_main_socket), address_family(address_family), type(type), protocol(protocol),
-	  port(port), num_of_working_threads(num_of_working_threads), buffer_size(buffer_size) {
+	  port(port), num_of_working_threads(num_of_working_threads) {
 		
 		socket_descriptor main_socket = create_socket(address_family, type, protocol);
 		bind_socket(main_socket, address_family, inet_addr(&addres_of_main_socket[0]), htons(port));
@@ -65,35 +63,12 @@ public:
 			socket_descriptor client = accept_socket(main_socket);
 			LOG("Connect to socket " << client.get_sd() << "\n");
 			
-			my_completion_key *key;
-			
 			unsigned int client_sd = client.get_sd();
-			
-			try {
-				key = new my_completion_key(std::move(client));
-			} catch (...) {
-				LOG("Allocation error.");
-				throw;
-			}
+			my_completion_key *key = create_completion_key(std::move(client));
 			
 			CreateIoCompletionPort((HANDLE)client_sd, port.get_handle(), (DWORD)key, 0);
 			
-			additional_info *info;
-			try {
-				info = new additional_info(buffer_size);
-			} catch (...) {
-				LOG("Allocation error.");
-				throw;
-			}
-			
-			DWORD flags = 0;
-			DWORD unused;
-			
-			if (WSARecv(client_sd, &info->data_buff, (DWORD)1, &unused, &flags, &info->overlapped, NULL) == SOCKET_ERROR) {
-				if (WSAGetLastError() != ERROR_IO_PENDING) {
-					throw new socket_exception("Error in WSARecv : " + to_str(WSAGetLastError()) + "\n");
-				}
-			}
+			on_accept(key);
 		}
 	}
 	friend DWORD WINAPI WorkingThread(LPVOID CompletionPortID);
@@ -102,19 +77,24 @@ protected:
 	
 	void recv(my_completion_key* received_key, additional_info* data) {
 		data->clear();
+		data->last_operation_type = additional_info::RECV_KEY;
 		DWORD received_bytes;
-		
 		DWORD flags = 0;
 		
+		my_OVERLAPED* overlapped = new my_OVERLAPED(data);
+		
 		if (WSARecv(received_key->sd.get_sd(), &data->data_buff, 1, &received_bytes/*unused*/, &flags,
-				&data->overlapped, NULL) == SOCKET_ERROR) {
+				&overlapped->overlapped, NULL) == SOCKET_ERROR) {
 						if ((WSAGetLastError() == 10054) || (WSAGetLastError() == 10053)) {
+							delete overlapped;
 							free_data(received_key, data);
 							return;
 						}
 						
 						if (WSAGetLastError() != ERROR_IO_PENDING) {
-							LOG("!!!\n");
+							delete overlapped;
+							free_data(received_key, data);
+							
 							throw new socket_exception("Error in WSARecv : " + to_str(WSAGetLastError()) + "\n");
 						}
 		}
@@ -130,23 +110,78 @@ protected:
 //				}
 //				LOG("\n");
 		}
+		
+		data->last_operation_type = additional_info::SEND_KEY;
 		DWORD received_bytes;
 		
+		my_OVERLAPED* overlapped = new my_OVERLAPED(data);
+		
 		if (WSASend(received_key->sd.get_sd(), &data->data_buff, 1, &received_bytes/*unused*/, 0, 
-					&data->overlapped, NULL) == SOCKET_ERROR) {
+					&overlapped->overlapped, NULL) == SOCKET_ERROR) {
 						if (WSAGetLastError() == 10054) { // подключение разорвано
+							delete overlapped;
+							
 							LOG("In WSASend connection broken.\n");
 							free_data(received_key, data);
 							return;
 						}
 						
 						if (WSAGetLastError() != ERROR_IO_PENDING) {
+							delete overlapped;
+							free_data(received_key, data);
 							throw new socket_exception("Error in WSASend : " + to_str(WSAGetLastError()) + "\n");
 						}
 		}
 		
 //			Sleep(2000);
+	}
+	
+	virtual my_completion_key* create_completion_key(socket_descriptor&& client) {
+		try {
+			return new my_completion_key(std::move(client));
+		} catch (...) {
+			LOG("Allocation error.");
+			throw;
+		}
+	}
+	
+	virtual additional_info* create_additional_info(size_t buffer_size) {
+		try {
+			return new additional_info(buffer_size);
+		} catch (...) {
+			LOG("Allocation error.");
+			throw;
+		}
+	}
+	
+	virtual void on_accept(my_completion_key *key) {
+		recv(key, create_additional_info(1024));
+	}
+	
+	virtual void on_send_completion(my_completion_key *key, additional_info *info, DWORD transmited_bytes) {
+		if (transmited_bytes == 0) {
+			free_data(key, info);
+			return;
+		}
+		info->sended_bytes += transmited_bytes;
+		info->data_buff.buf += transmited_bytes;
+		info->data_buff.len -= transmited_bytes;
 		
+		if (info->sended_bytes < info->received_bytes) {
+			send(key, info);
+		} else {
+			recv(key, info);
+		}
+	}
+	
+	virtual void on_recv_completion(my_completion_key *key, additional_info *info, DWORD transmited_bytes) {
+		if (transmited_bytes == 0) {
+			free_data(key, info);
+			return;
+		}
+		info->received_bytes = transmited_bytes;
+		info->data_buff.len = transmited_bytes;
+		send(key, info);
 	}
 	
 };

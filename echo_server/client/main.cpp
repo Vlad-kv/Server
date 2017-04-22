@@ -23,13 +23,13 @@ int main() {
 		
 		string test;
 		
-		for (int w = 0; w < 10000; w++) {
+		for (int w = 0; w < 2000; w++) {
 			test += "w";
 		}
 		
 		int res;
 		
-		for (int w = 0; w < 10; w++) {
+		for (int w = 0; w < 5; w++) {
 			Sleep(1000);
 			
 //			send_to_socket(client, test);

@@ -131,4 +131,8 @@ string receive_from_socket(const socket_descriptor& sock) {
 	return result;
 }
 
+int additional_info::NO_OPERATION_KEY = 0;
+int additional_info::RECV_KEY = 1;
+int additional_info::SEND_KEY = 2;
+
 

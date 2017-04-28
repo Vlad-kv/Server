@@ -15,8 +15,9 @@ class abstract_server {
 	int protocol;
 	int port;
 	int num_of_working_threads;
+	LPFN_ACCEPTEX lpfnAcceptEx = NULL;
 	
-	socket_descriptor main_socket;
+	my_completion_key *main_completion_key;
 	
 	struct mess_to_working_thread {
 		HANDLE iocp;
@@ -26,6 +27,8 @@ class abstract_server {
 		: iocp(iocp), server(server) {
 		}
 	};
+	
+	void start_working(const IO_completion_port& iocp);
 	
 public:
 	
@@ -37,11 +40,11 @@ public:
 		socket_descriptor main_socket = create_socket(address_family, type, protocol);
 		bind_socket(main_socket, address_family, inet_addr(&addres_of_main_socket[0]), htons(port));
 		
-		this->main_socket = std::move(main_socket);
+		main_completion_key = new my_completion_key(std::move(main_socket));
 	}
 	
 	void start() {
-		if (listen(main_socket.get_sd(), SOMAXCONN) == SOCKET_ERROR) {
+		if (listen(main_completion_key->get_sd(), SOMAXCONN) == SOCKET_ERROR) {
 			throw new socket_exception("listen function failed with error: " + to_str(WSAGetLastError()) + "\n");
 		}
 		
@@ -50,47 +53,58 @@ public:
 			throw new socket_exception("Error in creation IO Completion Port : " + to_str(GetLastError()) + "\n");
 		}
 		
-		for (int w = 0; w < num_of_working_threads; w++) {
-			DWORD thread_id;
-			HANDLE handle = CreateThread(NULL, 0, WorkingThread, new mess_to_working_thread(port.get_handle(), this), 0, &thread_id);
-			if (handle == NULL) {
-				throw new socket_exception("Error in creation new thread : " + to_str(GetLastError()) + "\n");
-			}
-			CloseHandle(handle);
+		GUID GuidAcceptEx = WSAID_ACCEPTEX;
+		
+		DWORD unused;
+		int res = WSAIoctl(main_completion_key->get_sd(), SIO_GET_EXTENSION_FUNCTION_POINTER,
+							&GuidAcceptEx, sizeof(GuidAcceptEx),
+							&lpfnAcceptEx, sizeof(lpfnAcceptEx),
+							&unused, NULL, NULL);
+		if (res == SOCKET_ERROR) {
+			throw new socket_exception("WSAIoctl failed with error : " + to_str(WSAGetLastError()) + "\n");
 		}
 		
-		while (1) {
-			socket_descriptor client = accept_socket(main_socket);
-			LOG("Connect to socket " << client.get_sd() << "\n");
-			
-			unsigned int client_sd = client.get_sd();
-			my_completion_key *key = create_completion_key(std::move(client));
-			
-			CreateIoCompletionPort((HANDLE)client_sd, port.get_handle(), (DWORD)key, 0);
-			
-			on_accept(key);
-		}
+		CreateIoCompletionPort((HANDLE)main_completion_key->get_sd(), port.get_handle(), (DWORD)main_completion_key, 0);
+		
+		accept();
+		start_working(port);
 	}
 	friend DWORD WINAPI WorkingThread(LPVOID CompletionPortID);
+	
+	void accept() {
+		socket_descriptor client = create_socket(address_family, type, protocol);
+		
+		additional_info* info = new additional_info(((sizeof (sockaddr_in) + 16) * 2));
+		
+		my_OVERLAPED* overlapped = new my_OVERLAPED(0, my_OVERLAPED::ACCEPT_KEY, std::move(client));
+		DWORD unused;
+		int res = lpfnAcceptEx(main_completion_key->get_sd(), overlapped->client.get_sd(), info->buffer,
+								0, sizeof (sockaddr_in) + 16, sizeof (sockaddr_in) + 16,
+								&unused, &overlapped->overlapped);
+		if (res == FALSE) {
+			if (WSAGetLastError() != ERROR_IO_PENDING) {
+				LOG("lpfnAcceptEx failed with error : " + to_str(WSAGetLastError()) + "\n");
+				return;
+			}
+		}
+	}
 	
 protected:
 	
 	void recv(my_completion_key* received_key, additional_info* data) {
 		data->clear();
-		data->last_operation_type = additional_info::RECV_KEY;
 		DWORD received_bytes;
 		DWORD flags = 0;
 		
-		my_OVERLAPED* overlapped = new my_OVERLAPED(data);
+		my_OVERLAPED* overlapped = new my_OVERLAPED(data, my_OVERLAPED::RECV_KEY);
 		
-		if (WSARecv(received_key->sd.get_sd(), &data->data_buff, 1, &received_bytes/*unused*/, &flags,
+		if (WSARecv(received_key->get_sd(), &data->data_buff, 1, &received_bytes/*unused*/, &flags,
 				&overlapped->overlapped, NULL) == SOCKET_ERROR) {
 						if ((WSAGetLastError() == 10054) || (WSAGetLastError() == 10053)) {
 							delete overlapped;
 							free_data(received_key, data);
 							return;
 						}
-						
 						if (WSAGetLastError() != ERROR_IO_PENDING) {
 							delete overlapped;
 							free_data(received_key, data);
@@ -111,12 +125,11 @@ protected:
 //				LOG("\n");
 		}
 		
-		data->last_operation_type = additional_info::SEND_KEY;
 		DWORD received_bytes;
 		
-		my_OVERLAPED* overlapped = new my_OVERLAPED(data);
+		my_OVERLAPED* overlapped = new my_OVERLAPED(data, my_OVERLAPED::SEND_KEY);
 		
-		if (WSASend(received_key->sd.get_sd(), &data->data_buff, 1, &received_bytes/*unused*/, 0, 
+		if (WSASend(received_key->get_sd(), &data->data_buff, 1, &received_bytes/*unused*/, 0, 
 					&overlapped->overlapped, NULL) == SOCKET_ERROR) {
 						if (WSAGetLastError() == 10054) { // подключение разорвано
 							delete overlapped;
@@ -132,7 +145,6 @@ protected:
 							throw new socket_exception("Error in WSASend : " + to_str(WSAGetLastError()) + "\n");
 						}
 		}
-		
 //			Sleep(2000);
 	}
 	
@@ -185,6 +197,5 @@ protected:
 	}
 	
 };
-
 
 #endif // ABSTRACT_SERVER_H

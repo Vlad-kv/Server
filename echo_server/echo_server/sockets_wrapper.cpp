@@ -100,8 +100,6 @@ void blocking_send(const socket_descriptor& sock, string mess) {
 		}
 		WSAResetEvent(send_overlapped.hEvent);
 		
-		
-		
 		LOG("Sended " + to_str(sended_bytes) + " ");
 		
 		global_sended_bytes += sended_bytes;
@@ -130,9 +128,3 @@ string receive_from_socket(const socket_descriptor& sock) {
 	
 	return result;
 }
-
-int additional_info::NO_OPERATION_KEY = 0;
-int additional_info::RECV_KEY = 1;
-int additional_info::SEND_KEY = 2;
-
-

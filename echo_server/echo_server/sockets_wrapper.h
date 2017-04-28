@@ -7,6 +7,9 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <WinBase.h>
+
+#include <mswsock.h>
+
 #include <memory>
 
 #include <cstddef>
@@ -52,6 +55,10 @@ public:
 	socket_descriptor(socket_descriptor &&to_move) 
 	: sd(to_move.sd) {
 		to_move.sd = -1;
+	}
+	
+	void invalidate() {
+		sd = INVALID_SOCKET;
 	}
 	
 	unsigned int get_sd() const {
@@ -131,29 +138,43 @@ public:
 	
 	IO_completion_port(IO_completion_port &&port)
 	: iocp_handle(port.iocp_handle) {
-		port.iocp_handle = NULL;
+		port.iocp_handle = INVALID_HANDLE_VALUE;
 	}
 	
-	HANDLE get_handle() {
+	IO_completion_port()
+	: iocp_handle(INVALID_HANDLE_VALUE) {
+	}
+	
+	HANDLE get_handle() const {
 		return iocp_handle;
 	}
 	
-	~IO_completion_port() {
-		if (iocp_handle != NULL) {
+	void close() {
+		if (iocp_handle != INVALID_HANDLE_VALUE) {
 			LOG("~~~~~~~~~~~~~\n");
 			BOOL res = CloseHandle(iocp_handle);
 			if (res == 0) {
-				LOG("Error in closing completion port : " + to_str(GetLastError()));
+				throw new socket_exception("Error in closing completion port : " + to_str(GetLastError()));
 			}
+		}
+	}
+	
+	~IO_completion_port() {
+		try {
+			close();
+		} catch (const socket_exception& ex) {
+			LOG("Exception in destructor of IO_completion_port");
 		}
 	}
 };
 
 class my_completion_key {
-public:
 	socket_descriptor sd;
+public:
 	// TODO
-	
+	unsigned int get_sd() const {
+		return sd.get_sd();
+	}
 	
 	my_completion_key(socket_descriptor &&sd) 
 	: sd(std::move(sd)) {
@@ -163,39 +184,24 @@ public:
 
 class additional_info {
 public:
-	
-	static int NO_OPERATION_KEY, RECV_KEY, SEND_KEY;
-	
-//	OVERLAPPED overlapped;
-	
 	WSABUF data_buff;
 	
 	char *buffer;
 	int buff_size;
 	
-	int last_operation_type;
-	
 	DWORD received_bytes; // long unsigned int
 	DWORD sended_bytes;
-	
 	
 	additional_info(int buff_size) 
 	: buffer(new char[buff_size]), buff_size(buff_size) {
 		clear();
 	}
 	
-	int get_operation_type() {
-		return last_operation_type;
-	}
-	
 	void clear() {
-//		ZeroMemory(&overlapped, sizeof(OVERLAPPED));
 		received_bytes = sended_bytes = 0;
 		
 		data_buff.len = buff_size;
 		data_buff.buf = buffer;
-		
-		last_operation_type = NO_OPERATION_KEY;
 	}
 	
 	~additional_info() {
@@ -204,11 +210,24 @@ public:
 };
 
 struct my_OVERLAPED {
+	static const int NO_OPERATION_KEY = 0, RECV_KEY = 1, SEND_KEY = 2, ACCEPT_KEY = 3;
+	
 	OVERLAPPED overlapped;
 	additional_info* info;
+	int last_operation_type;
+	socket_descriptor client;
 	
-	my_OVERLAPED(additional_info* info)
-	: info(info) {
+	int get_operation_type() {
+		return last_operation_type;
+	}
+	
+	my_OVERLAPED(additional_info* info, int last_operation_type, socket_descriptor&& client)
+	: info(info), last_operation_type(last_operation_type), client(std::move(client)) {
+		SecureZeroMemory((PVOID) &overlapped, sizeof(OVERLAPPED));
+	}
+	
+	my_OVERLAPED(additional_info* info, int last_operation_type)
+	: info(info), last_operation_type(last_operation_type) {
 		SecureZeroMemory((PVOID) &overlapped, sizeof(OVERLAPPED));
 	}
 };

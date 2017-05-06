@@ -27,8 +27,6 @@ int main() {
 			test += "w";
 		}
 		
-		int res;
-		
 		for (int w = 0; w < 5; w++) {
 			Sleep(1000);
 			
@@ -37,15 +35,10 @@ int main() {
 			blocking_send(client, test);
 			
 			cout << "--\n";
-			
-			if (res == SOCKET_ERROR) {
-				cout << "Error in sending data " << WSAGetLastError() << "\n";
-				return 0;
-			}
 		}
 		
 		Sleep(1000);
-		
+		int res;
 		res = shutdown(client.get_sd(), SD_SEND);
 		if (res == SOCKET_ERROR) {
 			cout << "Error in shutdowning : " << WSAGetLastError() << "\n";

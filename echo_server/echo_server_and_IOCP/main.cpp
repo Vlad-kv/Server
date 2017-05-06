@@ -8,7 +8,8 @@
 
 #include "../echo_server/sockets_wrapper.h"
 
-#include "abstract_server.h"
+#include "echo_server.h"
+#include "socket.h"
 
 using namespace std;
 
@@ -22,11 +23,15 @@ const int TIMEOUT = 1000;
 //deque<pair<long long, *socket_descriptor>> time_queue;
 
 int main(int argc, char* argv[]) {
+    
+    socket_descriptor sd();
+    
+    /*
     WSA_holder wsa_holder(MAKEWORD(2, 2));
     
-    abstract_server server(MAIN_SOCKET_ADDRES, AF_INET, SOCK_STREAM, 0, 8001, 1);
+    echo_server server(MAIN_SOCKET_ADDRES, AF_INET, SOCK_STREAM, 0, 8001, 1);
     
     server.start();
-    
+    */
     return 0;
 }

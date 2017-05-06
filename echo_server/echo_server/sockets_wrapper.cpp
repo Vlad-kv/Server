@@ -4,24 +4,24 @@
 const int BUFFER_SIZE = 1024;
 char buffer[BUFFER_SIZE];
 
-socket_descriptor create_socket(int af, int type, int protocol) {
+client_socket create_socket(int af, int type, int protocol) {
 	SOCKET res = socket(af, type, protocol);
 	
     if (res == INVALID_SOCKET) {
 		throw new socket_exception("Socket function failed with error " + to_str(WSAGetLastError()) + "\n");
 	}
-	return socket_descriptor(res);
+	return client_socket(res);
 }
 
-socket_descriptor accept_socket(const socket_descriptor& sock) {
+client_socket accept_socket(const client_socket& sock) {
 	SOCKET res = accept(sock.get_sd(), 0, 0);
 	if (res == INVALID_SOCKET) {
 		throw new socket_exception("Accept failed with error " + to_str(WSAGetLastError()) + "\n");
 	}
-	return socket_descriptor(res);
+	return client_socket(res);
 }
 
-void bind_socket(const socket_descriptor& sock, short family, u_long addr, u_short port) {
+void bind_socket(const client_socket& sock, short family, u_long addr, u_short port) {
 	sockaddr_in addres;
 	
 	addres.sin_family = family;
@@ -35,7 +35,7 @@ void bind_socket(const socket_descriptor& sock, short family, u_long addr, u_sho
 	}
 }
 
-void connect_to_socket(const socket_descriptor& connectSocket, short family, u_long addr, u_short port) {
+void connect_to_socket(const client_socket& connectSocket, short family, u_long addr, u_short port) {
 	sockaddr_in addres;
 	
 	addres.sin_family = family;
@@ -48,7 +48,7 @@ void connect_to_socket(const socket_descriptor& connectSocket, short family, u_l
 	}
 }
 
-void send_to_socket(const socket_descriptor& sock, string mess) {
+void send_to_socket(const client_socket& sock, string mess) {
 	size_t sended_bytes = 0;
 	while (sended_bytes < mess.length()) {
 		int res = send(sock.get_sd(), (&mess[0]) + sended_bytes, mess.length() - sended_bytes, 0);
@@ -61,7 +61,7 @@ void send_to_socket(const socket_descriptor& sock, string mess) {
 	}
 }
 
-void blocking_send(const socket_descriptor& sock, string mess) {
+void blocking_send(const client_socket& sock, string mess) {
 	size_t global_sended_bytes = 0;
 	WSABUF data_buf;
 	WSAOVERLAPPED send_overlapped;
@@ -109,7 +109,7 @@ void blocking_send(const socket_descriptor& sock, string mess) {
 	LOG("blocking_send finished\n");
 }
 
-string receive_from_socket(const socket_descriptor& sock) {
+string receive_from_socket(const client_socket& sock) {
 	string result;
 	
 	int received_bytes;

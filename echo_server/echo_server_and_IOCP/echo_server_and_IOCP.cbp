@@ -35,6 +35,7 @@
 		<Unit filename="../echo_server/sockets_wrapper.cpp" />
 		<Unit filename="abstract_server.cpp" />
 		<Unit filename="abstract_server.h" />
+		<Unit filename="echo_server.h" />
 		<Unit filename="logger.h" />
 		<Unit filename="main.cpp" />
 		<Extensions>

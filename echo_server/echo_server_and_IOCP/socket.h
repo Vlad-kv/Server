@@ -68,6 +68,7 @@ public:
 	unsigned int get_sd() const;
 	
 	void close();
+	~client_socket();
 	
 	client_socket& operator=(const client_socket &) = delete;
 	client_socket& operator=(client_socket&& socket_d);
@@ -103,7 +104,6 @@ public:
 	void accept(int address_family, int type, int protocol);
 	
 	void close();
-	
 	~server_socket();
 };
 

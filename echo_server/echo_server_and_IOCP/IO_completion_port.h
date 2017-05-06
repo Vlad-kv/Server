@@ -10,6 +10,11 @@
 class IO_completion_port {
 	HANDLE iocp_handle;
 	
+	struct completion_key_decrementer {
+		completion_key* key;
+		completion_key_decrementer(completion_key* key);
+		~completion_key_decrementer();
+	};
 public:
 	IO_completion_port(HANDLE handle);
 	IO_completion_port(const IO_completion_port &) = delete;
@@ -18,14 +23,12 @@ public:
 	
 	HANDLE get_handle() const;
 	
+	void registrate_socket(server_socket& sock);
+	void registrate_socket(client_socket& sock);
+	
+	void run();
+	
 	void close();
-	
-	void registrate_socket() {
-	}
-	
-	void run() {
-	}
-	
 	~IO_completion_port();
 };
 

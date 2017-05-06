@@ -1,5 +1,21 @@
 #include "socket.h"
 
+completion_key::completion_key(client_socket* client) 
+: num_referenses(0), type(CLIENT_SOCKET_KEY), ptr((void*)client) {
+}
+completion_key::completion_key(server_socket* server) 
+: num_referenses(0), type(SERVER_SOCKET_KEY), ptr((void*)server) {
+}
+
+///------------------------------------------
+
+client_socket::client_socket_overlapped::client_socket_overlapped(int type, char* buff, size_t size)
+: type_of_operation(type) {
+	SecureZeroMemory((PVOID) &overlapped, sizeof(OVERLAPPED));
+	this->buff.buf = buff;
+	this->buff.len = size;
+}
+
 client_socket::client_socket()
 : sd(INVALID_SOCKET) {
 }
@@ -10,12 +26,67 @@ client_socket::client_socket(client_socket &&other)
 : sd(std::move(other.sd)) {
 }
 
-void client_socket::set_on_read_completion(func_t on_read_completion) {
-	this->on_read_completion = on_read_completion;
+void client_socket::set_on_read_completion(func_real_rw_t on_read_completion) {
+	this->on_read_completion = std::bind(on_read_completion, std::ref(*this), std::placeholders::_1);
 }
-void client_socket::set_on_write_completion(func_t on_write_completion) {
-	this->on_write_completion = on_write_completion;
+void client_socket::set_on_write_completion(func_real_rw_t on_write_completion) {
+	this->on_write_completion = std::bind(on_write_completion, std::ref(*this), std::placeholders::_1);
 }
+void client_socket::set_on_disconnect(func_real_disc_t on_disconnect) {
+	this->on_disconnect = std::bind(on_disconnect, std::ref(*this));
+}
+
+void client_socket::read_some(char *buff, size_t size) {
+	DWORD received_bytes;
+	DWORD flags = 0;
+	
+	client_socket_overlapped* overlapped = new client_socket_overlapped(client_socket_overlapped::RECV_KEY,
+																		buff, size);
+	
+	if (WSARecv(sd.get_sd(), &overlapped->buff, 1, &received_bytes/*unused*/, &flags,
+			&overlapped->overlapped, NULL) == SOCKET_ERROR) {
+					if ((WSAGetLastError() == 10054) || (WSAGetLastError() == 10053)) {
+						LOG("In WSARecv connection broken.\n");
+						
+						delete overlapped;
+						on_disconnect();
+						return;
+					}
+					if (WSAGetLastError() != ERROR_IO_PENDING) {
+						delete overlapped;
+						on_disconnect();
+						throw new socket_exception("Error in WSARecv : " + std::to_string(WSAGetLastError()) + "\n");
+					}
+	}
+}
+
+void client_socket::write_some(const char *buff, size_t size) {
+	{
+		LOG("Sending bytes : ");
+		LOG(size << "\n");
+	}
+	
+	DWORD received_bytes;
+	client_socket_overlapped *overlapped = new client_socket_overlapped(client_socket_overlapped::SEND_KEY,
+																		const_cast<char*>(buff), size);
+	
+	if (WSASend(sd.get_sd(), &overlapped->buff, 1, &received_bytes/*unused*/, 0, 
+				&overlapped->overlapped, NULL) == SOCKET_ERROR) {
+					if (WSAGetLastError() == 10054) { // подключение разорвано
+						LOG("In WSASend connection broken.\n");
+						
+						delete overlapped;
+						on_disconnect();
+						return;
+					}
+					if (WSAGetLastError() != ERROR_IO_PENDING) {
+						delete overlapped;
+						on_disconnect();
+						throw new socket_exception("Error in WSASend : " + std::to_string(WSAGetLastError()) + "\n");
+					}
+	}
+}
+
 
 void client_socket::close() {
 	LOG("Closing client socket : " << sd.get_sd() << "\n");
@@ -39,6 +110,9 @@ unsigned int client_socket::get_sd() const {
 
 ///------------------------------------
 
+server_socket::server_socket_overlapped::server_socket_overlapped() {
+	SecureZeroMemory((PVOID) &overlapped, sizeof(OVERLAPPED));
+}
 
 void server_socket::init_AcceptEx() {
 	GuidAcceptEx = new GUID;
@@ -64,8 +138,8 @@ void server_socket::init_AcceptEx() {
 
 server_socket::server_socket() {
 }
-server_socket::server_socket(socket_descriptor &&sd)
-: sd(std::move(sd)) {
+server_socket::server_socket(socket_descriptor &&sd, func_t on_accept)
+: on_accept(on_accept), sd(std::move(sd)) {
 	init_AcceptEx();
 }
 server_socket::server_socket(server_socket &&other) {
@@ -73,8 +147,26 @@ server_socket::server_socket(server_socket &&other) {
 	sd = std::move(other.sd);
 	GuidAcceptEx = other.GuidAcceptEx;
 	lpfnAcceptEx = other.lpfnAcceptEx;
+	on_accept = other.on_accept;
 }
 
+void server_socket::accept(int address_family, int type, int protocol) {
+	socket_descriptor client(address_family, type, protocol);
+	
+	server_socket_overlapped *overlapped = new server_socket_overlapped;
+	overlapped->sd = std::move(client);
+	
+	DWORD unused;
+	int res = lpfnAcceptEx(sd.get_sd(), overlapped->sd.get_sd(), overlapped->buffer,
+							0, sizeof (sockaddr_in) + 16, sizeof (sockaddr_in) + 16,
+							&unused, &overlapped->overlapped);
+	if (res == FALSE) {
+		if (WSAGetLastError() != ERROR_IO_PENDING) {
+			delete overlapped;
+			throw new socket_exception("lpfnAcceptEx failed with error : " + std::to_string(WSAGetLastError()) + "\n");
+		}
+	}
+}
 
 void server_socket::close() {
 	if (sd.is_valid()) {

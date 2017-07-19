@@ -18,6 +18,7 @@ local.properties
 
 *.layout
 *.depend
+*/doxyfile
 
 # External tool builders
 .externalToolBuilders/
@@ -217,3 +218,4 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
+echo_server/echo_server_and_IOCP/doxygen/doxyfile

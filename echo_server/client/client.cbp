@@ -34,6 +34,8 @@
 		</Compiler>
 		<Unit filename="../echo_server/sockets_wrapper.cpp" />
 		<Unit filename="../echo_server/sockets_wrapper.h" />
+		<Unit filename="../echo_server_and_IOCP/socket.cpp" />
+		<Unit filename="../echo_server_and_IOCP/socket_descriptor.cpp" />
 		<Unit filename="main.cpp" />
 		<Extensions>
 			<code_completion />

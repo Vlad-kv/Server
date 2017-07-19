@@ -17,7 +17,7 @@ int main() {
 	{
 		WSA_holder wsa_holder(MAKEWORD(2, 2));
 		
-		socket_descriptor client = create_socket(AF_INET, SOCK_STREAM, 0);
+		socket_descriptor client(AF_INET, SOCK_STREAM, 0);
 		
 		connect_to_socket(client, AF_INET, inet_addr(MAIN_SOCKET_ADDRES), htons(8001));
 		

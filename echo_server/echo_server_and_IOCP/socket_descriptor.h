@@ -4,6 +4,8 @@
 #include <winsock2.h>
 #include <windows.h>
 
+class socket_descriptor;
+
 #include "logger.h"
 #include "socket_exception.h"
 
@@ -20,7 +22,7 @@ public:
 	socket_descriptor(socket_descriptor &&other);
 	
 	void invalidate();
-	unsigned int get_sd() const;
+	SOCKET get_sd() const;
 	
 	bool is_valid() const;
 	

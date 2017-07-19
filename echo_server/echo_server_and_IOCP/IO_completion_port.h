@@ -3,6 +3,10 @@
 
 #include <winsock2.h>
 #include <windows.h>
+#include <memory>
+#include <thread>
+
+class IO_completion_port;
 
 #include "socket.h"
 #include "logger.h"
@@ -26,7 +30,8 @@ public:
 	void registrate_socket(server_socket& sock);
 	void registrate_socket(client_socket& sock);
 	
-	void run();
+	void run_in_this_thread();
+	std::unique_ptr<std::thread> run_in_new_thread();
 	
 	void close();
 	~IO_completion_port();

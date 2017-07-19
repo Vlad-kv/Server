@@ -17,6 +17,8 @@
 #include "../echo_server_and_IOCP/logger.h"
 
 #include "../echo_server_and_IOCP/socket.h"
+#include "../echo_server_and_IOCP/socket_descriptor.h"
+
 #include "../echo_server_and_IOCP/IO_completion_port.h"
 
 using namespace std;
@@ -28,19 +30,17 @@ string to_str(const T& n) {
 	return stm.str();
 }
 
-client_socket create_socket(int af, int type, int protocol);
-
 client_socket accept_socket(const client_socket& sock);
 
-void bind_socket(const client_socket& sock, short family, u_long addr, u_short port);
+void bind_socket(const server_socket& sock, short family, u_long addr, u_short port);
 
-void connect_to_socket(const client_socket& connectSocket, short family, u_long addr, u_short port);
+void connect_to_socket(const socket_descriptor& connectSocket, short family, u_long addr, u_short port);
 
 void send_to_socket(const client_socket& sock, string mess);
 
-void blocking_send(const client_socket& sock, string mess);
+void blocking_send(const socket_descriptor& sock, string mess);
 
-string receive_from_socket(const client_socket& sock);
+string receive_from_socket(const socket_descriptor& sock);
 
 class WSA_holder {
 	public:
@@ -57,6 +57,5 @@ class WSA_holder {
 		WSACleanup();
 	}
 };
-
 
 #endif // SOCKETS_WRAPPER

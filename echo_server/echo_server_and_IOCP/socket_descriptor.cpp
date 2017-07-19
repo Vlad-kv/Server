@@ -54,6 +54,6 @@ void socket_descriptor::invalidate() {
 	sd = INVALID_SOCKET;
 }
 
-unsigned int socket_descriptor::get_sd() const {
+SOCKET socket_descriptor::get_sd() const {
 	return sd;
 }

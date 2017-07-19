@@ -1,4 +1,5 @@
 #include "IO_completion_port.h"
+#include <thread>
 
 IO_completion_port::completion_key_decrementer::completion_key_decrementer(completion_key* key) 
 : key(key) {
@@ -22,7 +23,10 @@ IO_completion_port::IO_completion_port(IO_completion_port &&port)
 }
 
 IO_completion_port::IO_completion_port()
-: iocp_handle(INVALID_HANDLE_VALUE) {
+: iocp_handle(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, 0)) {
+	if (iocp_handle == NULL) {
+		throw new socket_exception("CreateIoCompletionPort failed with error : " + std::to_string(GetLastError()) + "\n");
+	}
 }
 
 HANDLE IO_completion_port::get_handle() const {
@@ -60,7 +64,7 @@ void IO_completion_port::registrate_socket(client_socket& sock) {
 	key->num_referenses++;
 }
 
-void IO_completion_port::run() {
+void IO_completion_port::run_in_this_thread() {
 	DWORD transmited_bytes;
 	
 	completion_key* received_key;
@@ -79,6 +83,8 @@ void IO_completion_port::run() {
 		
 		completion_key_decrementer decrementer(received_key);
 		
+		LOG(received_key->type << "\n");
+		
 		switch (received_key->type) {
 			case completion_key::SERVER_SOCKET_KEY : {
 				server_socket::server_socket_overlapped *real_overlaped = 
@@ -96,7 +102,6 @@ void IO_completion_port::run() {
 					}
 					break;
 				}
-				
 				((server_socket*)received_key->ptr)->on_accept(std::move(client));
 				break;
 			}
@@ -111,7 +116,7 @@ void IO_completion_port::run() {
 				if (res == 0) {
 					if (GetLastError() == 64) {
 						LOG("connection interrupted\n");
-						real_ptr->on_disconnect();
+						real_ptr->execute_on_disconnect();
 						continue;
 					}
 					
@@ -136,6 +141,15 @@ void IO_completion_port::run() {
 			}
 		}
 	}
+}
+
+void call_run_in_this_thread(IO_completion_port *port) {
+	port->run_in_this_thread();
+}
+
+std::unique_ptr<std::thread> IO_completion_port::run_in_new_thread() {
+	std::unique_ptr<std::thread> new_thread(new std::thread(call_run_in_this_thread, this));
+	return new_thread;
 }
 
 IO_completion_port::~IO_completion_port() {

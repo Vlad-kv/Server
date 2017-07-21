@@ -83,7 +83,9 @@ void IO_completion_port::run_in_this_thread() {
 		
 		completion_key_decrementer decrementer(received_key);
 		
-		LOG(received_key->type << "\n");
+		if (received_key->ptr == nullptr) {
+			continue;
+		}
 		
 		switch (received_key->type) {
 			case completion_key::SERVER_SOCKET_KEY : {

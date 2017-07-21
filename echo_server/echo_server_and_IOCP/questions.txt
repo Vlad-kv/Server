@@ -1,0 +1,28 @@
+﻿Как в таком коде может получиться deadlock???
+
+void timer_thread::start_new_thread(timer_thread *t_t) {
+	unique_lock<recursive_mutex> ul(t_t->m);
+	t_t->is_initialaised = true;
+	t_t->c_v.notify_one();
+	
+	LOG("in start_new_thread before wait\n");
+	
+	t_t->c_v.wait(ul);
+	
+	// ...
+}
+
+timer_thread::timer_thread() {
+	unique_lock<recursive_mutex> ul(m);
+	this_thread = make_unique<thread>(start_new_thread, this);
+	
+	LOG("in timer_thread::timer_thread\n");
+	
+	while (!is_initialaised) {
+		LOG("???\n");
+		c_v.wait(ul);
+	}
+}
+
+----------------------------------------------------------------
+

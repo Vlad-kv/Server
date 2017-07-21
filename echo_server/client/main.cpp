@@ -10,30 +10,20 @@ using namespace std;
 const char* MAIN_SOCKET_ADDRES = "127.0.0.1";
 
 int main() {
-	
-//	std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
-//	cout << std::chrono::duration_cast<std::chrono::microseconds>(now).count() << "\n";
-	
 	{
 		WSA_holder wsa_holder(MAKEWORD(2, 2));
-		
 		socket_descriptor client(AF_INET, SOCK_STREAM, 0);
-		
 		connect_to_socket(client, AF_INET, inet_addr(MAIN_SOCKET_ADDRES), htons(8001));
 		
 		string test;
 		
-		for (int w = 0; w < 2000; w++) {
+		for (int w = 0; w < 200; w++) {
 			test += "w";
 		}
 		
-		for (int w = 0; w < 5; w++) {
-			Sleep(1000);
-			
-//			send_to_socket(client, test);
-			
+		for (int w = 0; w < 2; w++) {
+			Sleep(5000);
 			blocking_send(client, test);
-			
 			cout << "--\n";
 		}
 		

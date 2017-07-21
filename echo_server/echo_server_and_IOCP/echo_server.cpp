@@ -51,6 +51,7 @@ void echo_server::on_accept(client_socket_2 client_soc) {
 }
 
 void echo_server::on_read_completion(echo_server *this_server, client_data *client_d, size_t size) {
+	LOG("in on_read_completion : " << size << "\n");
 	if (size == 0) {
 		client_d->c_s.execute_on_disconnect();
 		return;
@@ -62,6 +63,7 @@ void echo_server::on_read_completion(echo_server *this_server, client_data *clie
 }
 
 void echo_server::on_write_completion(echo_server *this_server, client_data *c, size_t size) {
+	LOG("in on_write_completion : " << size << "\n");
 	if (size == 0) {
 		c->c_s.execute_on_disconnect();
 		return;
@@ -75,6 +77,7 @@ void echo_server::on_write_completion(echo_server *this_server, client_data *c, 
 }
 
 void echo_server::on_disconnect(echo_server *this_server, client_data *client_d) {
+	LOG("in on_disconnect\n");
 	long long id = client_d->c_s.get_id();
 	this_server->client_sockets.erase(id);
 }

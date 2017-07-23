@@ -1,5 +1,7 @@
 #include "socket_descriptor.h"
 
+using namespace std;
+
 socket_descriptor::socket_descriptor()
 : sd(INVALID_SOCKET) {
 }
@@ -10,12 +12,29 @@ socket_descriptor::socket_descriptor(int address_family, int type, int protocol)
 	sd = socket(address_family, type, protocol);
 	
     if (sd == INVALID_SOCKET) {
-		throw new socket_exception("Socket function failed with error " + std::to_string(WSAGetLastError()) + "\n");
+		throw new socket_exception("Socket function failed with error " + to_string(WSAGetLastError()) + "\n");
 	}
 }
 socket_descriptor::socket_descriptor(socket_descriptor &&other) 
 : sd(other.sd) {
 	other.sd = -1;
+}
+
+void socket_descriptor::connect(short family, u_long addr, u_short port) {
+	sockaddr_in addres;
+	
+	addres.sin_family = family;
+	addres.sin_addr.s_addr = addr;
+	addres.sin_port = htons(port);
+	
+	int res = ::connect(sd, (SOCKADDR *) &addres, sizeof(addres));
+	if (res == SOCKET_ERROR) {
+		throw new socket_exception("Connect function failed with error " + to_string(WSAGetLastError()) + "\n");
+	}
+}
+
+void socket_descriptor::connect(short family, std::string addr, u_short port) {
+	connect(family, inet_addr(&addr[0]), port);
 }
 
 void socket_descriptor::close() {
@@ -26,7 +45,7 @@ void socket_descriptor::close() {
 	int res = ::closesocket(sd);
 	sd = INVALID_SOCKET;
 	if (res == -1) {
-		throw new socket_exception("Error when closing sd " + std::to_string(sd) + " : " + std::to_string(res) + "\n");
+		throw new socket_exception("Error when closing sd " + to_string(sd) + " : " + to_string(res) + "\n");
 	}
 }
 

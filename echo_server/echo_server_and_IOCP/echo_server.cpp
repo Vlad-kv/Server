@@ -1,7 +1,9 @@
 #include "echo_server.h"
 
+using namespace std;
+
 echo_server::client_data::client_data(client_socket_2 &&c_s)
-: c_s(std::move(c_s)), buff(nullptr) {
+: c_s(move(c_s)), buff(nullptr) {
 }
 
 echo_server::client_data::client_data()
@@ -9,7 +11,7 @@ echo_server::client_data::client_data()
 }
 
 echo_server::client_data& echo_server::client_data::operator=(client_data &&c_d) {
-	c_s = std::move(c_d.c_s);
+	c_s = move(c_d.c_s);
 	buff = c_d.buff;
 	data_size = c_d.data_size;
 	
@@ -31,8 +33,6 @@ echo_server::echo_server(string addres_of_main_socket, int address_family, int t
 }
 
 void echo_server::on_accept(client_socket_2 client_soc) {
-	using namespace std;
-	
 	int id = client_soc.get_id();
 	client_sockets[id] = client_data(move(client_soc));
 	

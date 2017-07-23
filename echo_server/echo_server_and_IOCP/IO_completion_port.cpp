@@ -1,5 +1,16 @@
 #include "IO_completion_port.h"
 #include <thread>
+#include <cassert>
+
+using namespace std;
+
+bool operator<(const timer_holder& t_1, const timer_holder& t_2) {
+	return (*t_1.t < *t_2.t);
+}
+
+timer_holder::timer_holder(timer *t)
+: t(t) {
+}
 
 IO_completion_port::completion_key_decrementer::completion_key_decrementer(completion_key* key) 
 : key(key) {
@@ -13,8 +24,14 @@ IO_completion_port::completion_key_decrementer::~completion_key_decrementer() {
 
 ///---------------------------
 
-IO_completion_port::IO_completion_port(HANDLE handle)
-: iocp_handle(handle) {
+int IO_completion_port::get_time_to_wait() {
+	if (timers.size() == 0) {
+		return MAX_TIME_TO_WAIT;
+	}
+	int res = chrono::duration_cast<chrono::milliseconds>((*timers.begin()).t->expiration - chrono::steady_clock::now()).count();
+	res = max(res, 0);
+	res = min(res, MAX_TIME_TO_WAIT);
+	return res;
 }
 
 IO_completion_port::IO_completion_port(IO_completion_port &&port)
@@ -25,8 +42,48 @@ IO_completion_port::IO_completion_port(IO_completion_port &&port)
 IO_completion_port::IO_completion_port()
 : iocp_handle(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, 0)) {
 	if (iocp_handle == NULL) {
-		throw new socket_exception("CreateIoCompletionPort failed with error : " + std::to_string(GetLastError()) + "\n");
+		throw new socket_exception("CreateIoCompletionPort failed with error : " + to_string(GetLastError()) + "\n");
 	}
+	to_notify = socket_descriptor(AF_INET, SOCK_STREAM, 0);
+	
+	server_socket temp_s(AF_INET, SOCK_STREAM, 0, nullptr);
+	registrate_socket(temp_s);
+	
+	temp_s.bind_and_listen(AF_INET, "127.0.0.1", 8002); /// TODO - запросить у системы случайный
+	temp_s.accept(AF_INET, SOCK_STREAM, 0);
+	
+	to_notify.connect(AF_INET, "127.0.0.1", 8002);
+	
+	DWORD transmited_bytes;
+	completion_key* received_key;
+	OVERLAPPED* overlapped;
+	
+	int res = GetQueuedCompletionStatus(iocp_handle, &transmited_bytes, (LPDWORD)&received_key,
+										(LPOVERLAPPED*)&overlapped, INFINITE);
+	if (res == FALSE) {
+		throw new socket_exception("GetQueuedCompletionStatus failed with error "
+										+ to_string(GetLastError()) + "\n");
+	}
+	assert(received_key->type == completion_key::SERVER_SOCKET_KEY);
+	
+	completion_key_decrementer decrementer(received_key);
+	
+	server_socket::server_socket_overlapped *real_overlaped = 
+												(server_socket::server_socket_overlapped *)overlapped;
+	notification_socket = client_socket(move(real_overlaped->sd));
+	delete real_overlaped;
+	
+	notification_socket.set_on_read_completion(
+		[this](int size) {
+			if (size == 0) {
+				/// TODO
+			} else {
+				notification_socket.read_some(buff_to_notify, 1);
+			}
+		}
+	);
+	
+	registrate_socket(notification_socket);
 }
 
 HANDLE IO_completion_port::get_handle() const {
@@ -38,7 +95,7 @@ void IO_completion_port::close() {
 		LOG("~~~~~~~~~~~~~\n");
 		BOOL res = CloseHandle(iocp_handle);
 		if (res == 0) {
-			throw new socket_exception("Error in closing completion port : " + std::to_string(GetLastError()));
+			throw new socket_exception("Error in closing completion port : " + to_string(GetLastError()));
 		}
 	}
 }
@@ -48,7 +105,7 @@ void IO_completion_port::registrate_socket(server_socket& sock) {
 	HANDLE res = CreateIoCompletionPort((HANDLE)sock.sd.get_sd(), iocp_handle, (DWORD)key, 0);
 	if (res == NULL) {
 		delete key;
-		throw new socket_exception("CreateIoCompletionPort failed with error : " + std::to_string(GetLastError()) + "\n");
+		throw new socket_exception("CreateIoCompletionPort failed with error : " + to_string(GetLastError()) + "\n");
 	}
 	sock.key = key;
 	key->num_referenses++;
@@ -56,12 +113,24 @@ void IO_completion_port::registrate_socket(server_socket& sock) {
 void IO_completion_port::registrate_socket(client_socket& sock) {
 	completion_key *key = new completion_key(&sock);
 	HANDLE res = CreateIoCompletionPort((HANDLE)sock.sd.get_sd(), iocp_handle, (DWORD)key, 0);
+	
 	if (res == NULL) {
 		delete key;
-		throw new socket_exception("CreateIoCompletionPort failed with error : " + std::to_string(GetLastError()) + "\n");
+		throw new socket_exception("CreateIoCompletionPort failed with error : " + to_string(GetLastError()) + "\n");
 	}
 	sock.key = key;
 	key->num_referenses++;
+}
+void IO_completion_port::registrate_timer(timer& t) {
+	t.unregistrate();
+	t.port = this;
+	t.it = timers.emplace(&t);
+	
+	int res = send(to_notify.get_sd(), buff_to_notify, 1, 0);
+	if (res == SOCKET_ERROR) {
+		int error = WSAGetLastError();
+		throw new socket_exception("send failed with error : " + to_string(error) + "\n");
+	}
 }
 
 void IO_completion_port::run_in_this_thread() {
@@ -73,11 +142,32 @@ void IO_completion_port::run_in_this_thread() {
 	socket_descriptor client;
 	
 	while (1) {
+		int time_to_wait = get_time_to_wait();
+		while (time_to_wait == 0) {
+			timer *t = (*timers.begin()).t;
+			assert(timers.begin() == t->it);
+			timers.erase(t->it);
+			t->it = timers.end();
+			
+			try {
+				t->on_time_expiration(t);
+			} catch (...) {
+				LOG("exception in on_time_expiration\n");
+				/// TODO
+			}
+			time_to_wait = get_time_to_wait();
+		}
+		
 		int res = GetQueuedCompletionStatus(iocp_handle, &transmited_bytes, (LPDWORD)&received_key, 
-										(LPOVERLAPPED*)&overlapped, 500);
-		if ((res == 0) && (GetLastError() == 258)) {
-			LOG("-");
-			continue;
+										(LPOVERLAPPED*)&overlapped, time_to_wait);
+		if (res == 0) {
+			int error = GetLastError();
+			if (error == 258) {
+				LOG("-");
+				continue;
+			}
+			throw new socket_exception("GetQueuedCompletionStatus failed with error "
+										+ to_string(error) + "\n");
 		}
 		LOG("\n");
 		
@@ -92,19 +182,19 @@ void IO_completion_port::run_in_this_thread() {
 				server_socket::server_socket_overlapped *real_overlaped = 
 												(server_socket::server_socket_overlapped *)overlapped;
 				
-				socket_descriptor client = std::move(real_overlaped->sd);
+				socket_descriptor client = move(real_overlaped->sd);
 				delete real_overlaped;
 				
-				if (res == 0) {
-					if (received_key->ptr == nullptr) {
-						LOG("nullptr on server completion_key.");
-					} else {
-						LOG("GetQueuedCompletionStatus failed with error : " 
-														+ std::to_string(GetLastError()) + "\n");
-					}
-					break;
-				}
-				((server_socket*)received_key->ptr)->on_accept(std::move(client));
+//				if (res == 0) {
+//					if (received_key->ptr == nullptr) {
+//						LOG("nullptr on server completion_key.");
+//					} else {
+//						LOG("GetQueuedCompletionStatus failed with error : " 
+//														+ to_string(GetLastError()) + "\n");
+//					}
+//					break;
+//				}
+				((server_socket*)received_key->ptr)->on_accept(move(client));
 				break;
 			}
 			case completion_key::CLIENT_SOCKET_KEY : {
@@ -128,7 +218,7 @@ void IO_completion_port::run_in_this_thread() {
 					}
 					
 					throw new socket_exception("Error in GetQueuedCompletionStatus : " +
-												std::to_string(GetLastError()) + "\n");
+												to_string(GetLastError()) + "\n");
 				}
 				
 				if (type == client_socket::client_socket_overlapped::RECV_KEY) {
@@ -139,7 +229,7 @@ void IO_completion_port::run_in_this_thread() {
 					real_ptr->on_write_completion(transmited_bytes);
 					break;
 				}
-				throw new socket_exception("Uncnown operation code : " + std::to_string(type) + "\n");
+				throw new socket_exception("Uncnown operation code : " + to_string(type) + "\n");
 			}
 		}
 	}
@@ -150,7 +240,7 @@ void call_run_in_this_thread(IO_completion_port *port) {
 }
 
 std::unique_ptr<std::thread> IO_completion_port::run_in_new_thread() {
-	std::unique_ptr<std::thread> new_thread(new std::thread(call_run_in_this_thread, this));
+	unique_ptr<thread> new_thread(new thread(call_run_in_this_thread, this));
 	return new_thread;
 }
 

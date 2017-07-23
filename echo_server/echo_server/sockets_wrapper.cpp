@@ -31,7 +31,7 @@ void connect_to_socket(const socket_descriptor& connectSocket, short family, u_l
 	
 	addres.sin_family = family;
 	addres.sin_addr.s_addr = addr;
-	addres.sin_port = port;
+	addres.sin_port = htons(port);
 	
 	int res = connect(connectSocket.get_sd(), (SOCKADDR *) &addres, sizeof(addres));
 	if (res == SOCKET_ERROR) {

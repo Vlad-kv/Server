@@ -21,6 +21,9 @@ public:
 	socket_descriptor(const socket_descriptor &) = delete;
 	socket_descriptor(socket_descriptor &&other);
 	
+	void connect(short family, u_long addr, u_short port);
+	void connect(short family, std::string addr, u_short port);
+	
 	void invalidate();
 	SOCKET get_sd() const;
 	

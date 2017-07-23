@@ -27,6 +27,7 @@ public:
 	abstract_server(string addres_of_main_socket, int address_family, int type, int protocol, int port, IO_completion_port *comp_port = nullptr);
 	
 	void start();
+	void registrate_timer(timer& t);
 protected:
 	void accept();
 	

@@ -33,6 +33,7 @@
 			<Add option="-fexceptions" />
 		</Compiler>
 		<Unit filename="../echo_server/sockets_wrapper.cpp" />
+		<Unit filename="../echo_server/sockets_wrapper.h" />
 		<Unit filename="IO_completion_port.cpp" />
 		<Unit filename="IO_completion_port.h" />
 		<Unit filename="abstract_server.cpp" />

@@ -21,7 +21,6 @@ timer::timer(std::chrono::microseconds interval, func_t on_time_expiration)
 
 void timer::restart() {
 	time_point_t new_expiration = chrono::steady_clock::now() + this->interval;
-//	unique_lock<recursive_mutex> ul = lock();
 	
 	expiration = new_expiration;
 	

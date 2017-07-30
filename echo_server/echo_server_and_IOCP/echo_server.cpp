@@ -25,10 +25,10 @@ echo_server::client_data::~client_data() {
 		delete []buff;
 	}
 }
-		
+
 ///-------
 
-echo_server::echo_server(string addres_of_main_socket, int address_family, int type, int protocol, int port, IO_completion_port *comp_port)
+echo_server::echo_server(string addres_of_main_socket, int address_family, int type, int protocol, int port, IO_completion_port &comp_port)
 : abstract_server(addres_of_main_socket, address_family, type, protocol, port, comp_port) {
 }
 
@@ -48,6 +48,10 @@ void echo_server::on_accept(client_socket_2 client_soc) {
 	client_d.c_s.read_some(client_d.buff, client_d.data_size);
 	
 	accept();
+}
+
+void echo_server::on_interruption() {
+	LOG("Echo server interrupted.\n");
 }
 
 void echo_server::on_read_completion(echo_server *this_server, client_data *client_d, size_t size) {

@@ -45,10 +45,6 @@ public:
 	
 	long long get_id() const;
 	
-	void add_timer() {
-		// TODO
-	}
-	
 	~client_socket_2() {
 		// TODO
 	}

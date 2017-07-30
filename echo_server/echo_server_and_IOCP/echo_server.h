@@ -10,7 +10,7 @@ class echo_server;
 class echo_server : public abstract_server {
 	static const int BUFFER_SIZE = 1024;
 public:
-	echo_server(string addres_of_main_socket, int address_family, int type, int protocol, int port, IO_completion_port *comp_port = nullptr);
+	echo_server(string addres_of_main_socket, int address_family, int type, int protocol, int port, IO_completion_port &comp_port);
 private:
 	struct client_data {
 		client_socket_2 c_s;
@@ -27,12 +27,11 @@ private:
 	
 	map<long long, client_data> client_sockets;
 	
-	void on_accept(client_socket_2 client_soc);
+	void on_accept(client_socket_2 client_soc) override;
+	void on_interruption() override;
 	
 	static void on_read_completion(echo_server *this_server, client_data *client_d, size_t size);
-	
 	static void on_write_completion(echo_server *this_server, client_data *c, size_t size);
-	
 	static void on_disconnect(echo_server *this_server, client_data *client_d);
 };
 

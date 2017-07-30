@@ -4,11 +4,7 @@
 #include <functional>
 #include <chrono>
 #include <ctime>
-#include <memory>
-#include <mutex>
-#include <condition_variable>
 #include <set>
-#include <thread>
 
 class timer;
 
@@ -19,6 +15,7 @@ class timer {
 	typedef std::chrono::time_point<std::chrono::steady_clock> time_point_t;
 	
 	friend class IO_completion_port;
+	friend class timer_holder;
 	
 	func_t on_time_expiration;
 	time_point_t expiration;

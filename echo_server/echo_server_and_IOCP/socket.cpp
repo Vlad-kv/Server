@@ -253,6 +253,16 @@ void server_socket::accept(int address_family, int type, int protocol) {
 SOCKET server_socket::get_sd() const {
 	return sd.get_sd();
 }
+sockaddr_in server_socket::get_sock_address() {
+	sockaddr_in result;
+	int size = sizeof(result);
+	int res = getsockname(sd.get_sd(), (sockaddr*)&result, &size);
+	if (res != 0) {
+		int error = WSAGetLastError();
+		throw new socket_exception("getsockname failed with error : " + std::to_string(error) + "\n");
+	}
+	return result;
+}
 
 void server_socket::close() {
 	if (sd.is_valid()) {

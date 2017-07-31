@@ -66,10 +66,11 @@ IO_completion_port::IO_completion_port()
 	server_socket temp_s(AF_INET, SOCK_STREAM, 0, nullptr);
 	registrate_socket(temp_s);
 	
-	temp_s.bind_and_listen(AF_INET, "127.0.0.1", 8002); /// TODO - запросить у системы случайный
+	temp_s.bind_and_listen(AF_INET, "127.0.0.1", 0);
 	temp_s.accept(AF_INET, SOCK_STREAM, 0);
 	
-	to_notify.connect(AF_INET, "127.0.0.1", 8002);
+	sockaddr_in new_address = temp_s.get_sock_address();
+	to_notify.connect(AF_INET, new_address.sin_addr.s_addr, htons(new_address.sin_port));
 	
 	DWORD transmited_bytes;
 	completion_key* received_key;

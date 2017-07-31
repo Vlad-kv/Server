@@ -118,6 +118,7 @@ public:
 	void accept(int address_family, int type, int protocol);
 	
 	SOCKET get_sd() const;
+	sockaddr_in get_sock_address();
 	
 	void close();
 	~server_socket();

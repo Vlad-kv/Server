@@ -35,6 +35,6 @@ int main(int argc, char* argv[]) {
 		
 		port.start();
 	}
-	Sleep(5000);
+//	Sleep(5000);
 	return 0;
 }

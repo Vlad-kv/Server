@@ -42,6 +42,8 @@
 		<Unit filename="client_socket_2.h" />
 		<Unit filename="echo_server.cpp" />
 		<Unit filename="echo_server.h" />
+		<Unit filename="getaddrinfo_executer.cpp" />
+		<Unit filename="getaddrinfo_executer.h" />
 		<Unit filename="logger.h" />
 		<Unit filename="main.cpp" />
 		<Unit filename="socket.cpp" />

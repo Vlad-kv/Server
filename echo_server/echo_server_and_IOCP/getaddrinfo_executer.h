@@ -1,6 +1,8 @@
 #ifndef GETADDRINFO_EXECUTER_H
 #define GETADDRINFO_EXECUTER_H
 
+#include <ws2tcpip.h>
+#include <cstring>
 #include <thread>
 #include <memory>
 #include <vector>
@@ -9,6 +11,7 @@
 #include <queue>
 #include <map>
 #include <cassert>
+#include <atomic>
 
 class getaddrinfo_executer;
 
@@ -24,8 +27,7 @@ class getaddrinfo_executer {
 	typedef std::unique_ptr<std::thread> thread_ptr;
 	typedef IO_completion_port::func_t func_t;
 	typedef std::shared_ptr<group_data> group_ptr;
-	
-	static const key_t NO_GROUP = -1;
+	typedef std::function<void (addrinfo *info)> callback_t;
 	
 	struct thread_data {
 		thread_data(getaddrinfo_executer &this_executer);
@@ -36,9 +38,12 @@ class getaddrinfo_executer {
 	};
 	
 	struct group_data {
+		group_data(key_t id, int tasks_limit);
+		
 		std::queue<func_t> group_tasks;
-		bool is_deleted = false;
+		std::atomic_bool is_deleted;
 		key_t id;
+		int tasks_limit;
 	};
 	
 	static void working_thread(getaddrinfo_executer &this_executer, thread_data &data);
@@ -47,21 +52,25 @@ class getaddrinfo_executer {
 	
 	getaddrinfo_executer(IO_completion_port &port,
 						 int max_number_of_free_threads,
-						 int max_number_of_threads);
+						 int max_number_of_threads,
+						 int max_number_of_threads_per_group);
 	
-	void execute(key_t group_id, func_t task);
+	void execute(key_t group_id, std::string pNodeName, std::string pServiceName, ADDRINFO &pHints, callback_t task);
+	void delete_group(key_t group_id);
 	
 private:
 	void add_new_thread();
+	void move_tasks_to_main_queue(group_ptr group);
 	
 private:
 	std::map<key_t, group_ptr> groups;
 	IO_completion_port &port;
 	std::list<thread_data> threads;
-	std::queue<std::pair<key_t, func_t>> tasks;
+	std::queue<std::pair<group_ptr, func_t>> tasks;
 	
 	const int max_number_of_free_threads;
 	const int max_number_of_threads;
+	const int max_number_of_threads_per_group;
 	
 	int num_of_busy_threads = 0;
 	bool is_interrupted = false;

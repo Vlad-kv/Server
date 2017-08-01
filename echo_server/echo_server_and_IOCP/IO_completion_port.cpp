@@ -185,12 +185,17 @@ void IO_completion_port::start() {
 	
 	while (!is_interrapted.load()) {
 		{
-			lock_guard<mutex> lg(m);
-			if (tasks.size() > 0) {
-				func_t f = *tasks.begin();
-				tasks.pop_front();
+			func_t task_to_execute = nullptr;
+			{
+				lock_guard<mutex> lg(m);
+				if (tasks.size() > 0) {
+					task_to_execute = *tasks.begin();
+					tasks.pop_front();
+				}
+			}
+			if (task_to_execute != nullptr) {
 				try {
-					f();
+					task_to_execute();
 				} catch (...) {
 					LOG("Exception in task to execute (IO_completion_port::start)\n");
 				}

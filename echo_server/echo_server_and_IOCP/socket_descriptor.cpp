@@ -10,7 +10,6 @@ socket_descriptor::socket_descriptor(int sd)
 }
 socket_descriptor::socket_descriptor(int address_family, int type, int protocol) {
 	sd = socket(address_family, type, protocol);
-	
     if (sd == INVALID_SOCKET) {
 		throw new socket_exception("Socket function failed with error " + to_string(WSAGetLastError()) + "\n");
 	}
@@ -41,7 +40,7 @@ void socket_descriptor::close() {
 	if (sd == INVALID_SOCKET) {
 		return;
 	}
-	LOG("Closing client socket : " << sd << "\n");
+	LOG("Closing socket : " << sd << "\n");
 	int res = ::closesocket(sd);
 	sd = INVALID_SOCKET;
 	if (res == -1) {

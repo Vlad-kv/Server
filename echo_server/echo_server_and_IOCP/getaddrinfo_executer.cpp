@@ -7,6 +7,10 @@ std::mutex getaddrinfo_executer::mutex_to_destroying;
 
 void getaddrinfo_executer::destroy_thread(thread_ptr thread_p) {
 	lock_guard<mutex> lg(mutex_to_destroying);
+	if (thread_to_destroy != nullptr) {
+		thread_to_destroy->join();
+		thread_to_destroy = nullptr;
+	}
 	thread_to_destroy = move(thread_p);
 }
 
@@ -23,9 +27,10 @@ void getaddrinfo_executer::working_thread(getaddrinfo_executer &this_executer, t
 	
 	while (true) {
 		if (this_executer.is_interrupted) {
-			return;
+			break;
 		}
 		auto &tasks = this_executer.tasks;
+		
 		if (tasks.size() > 0) {
 			group_ptr group = tasks.front().first;
 			func_t task = tasks.front().second;
@@ -34,11 +39,10 @@ void getaddrinfo_executer::working_thread(getaddrinfo_executer &this_executer, t
 			if (group->is_deleted) {
 				continue;
 			}
-			if (tasks.size() > 0) {
-				this_executer.c_v.notify_one();
-			}
-			
 			this_executer.num_of_busy_threads++;
+			if (tasks.size() > 0) {
+				this_executer.notify();
+			}
 			ul.unlock();
 			try {
 				task();
@@ -49,7 +53,7 @@ void getaddrinfo_executer::working_thread(getaddrinfo_executer &this_executer, t
 			this_executer.num_of_busy_threads--;
 			
 			if (this_executer.is_interrupted) {
-				return;
+				break;
 			}
 			if (group->is_deleted) {
 				continue;
@@ -67,10 +71,11 @@ void getaddrinfo_executer::working_thread(getaddrinfo_executer &this_executer, t
 				pos = data.pos;
 			}
 			this_executer.threads.erase(pos);
-			return;
+			break;
 		}
 		this_executer.c_v.wait(ul);
 	}
+	LOG(" before exiting from working_thread\n");
 }
 
 getaddrinfo_executer::getaddrinfo_executer(IO_completion_port &port,
@@ -84,12 +89,20 @@ getaddrinfo_executer::getaddrinfo_executer(IO_completion_port &port,
 	assert(max(max_number_of_free_threads, 1) <= max_number_of_threads);
 	assert(1 <= max_number_of_threads_per_group);
 	
+	lock_guard<recursive_mutex> lg(m);
+	
+	port.registrate_on_interruption_event(
+		[this]() {
+			interrupt();
+		}
+	);
+	
 	for (int w = 0; w < max_number_of_free_threads; w++) {
 		add_new_thread();
 	}
 }
 
-void getaddrinfo_executer::execute(key_t group_id, std::string pNodeName, std::string pServiceName, ADDRINFO &pHints, callback_t task) {
+void getaddrinfo_executer::execute(key_t group_id, std::string pNodeName, std::string pServiceName, const ADDRINFO &pHints, callback_t task) {
 	lock_guard<recursive_mutex> lg(m);
 	
 	if (groups.count(group_id) == 0) {
@@ -100,9 +113,19 @@ void getaddrinfo_executer::execute(key_t group_id, std::string pNodeName, std::s
 	group->group_tasks.push(
 		[task, this, group, pNodeName, pServiceName, pHints]() {
 			addrinfo *result = nullptr;
+			
+			auto point_1 = chrono::steady_clock::now();
 			int ret_val = getaddrinfo(&pNodeName[0], &pServiceName[0], &pHints, &result);
-			if (ret_val != 0) {
-				throw new socket_exception("getaddrinfo failed with error : " + to_string(ret_val) + "\n");
+			auto point_2 = chrono::steady_clock::now();
+			
+			LOG("time : " << chrono::duration_cast<chrono::milliseconds>(point_2 - point_1).count() << "\n");
+			
+			if (ret_val == WSAHOST_NOT_FOUND) {
+				result = nullptr;
+			} else {
+				if (ret_val != 0) {
+					throw new socket_exception("getaddrinfo failed with error : " + to_string(ret_val) + "\n");
+				}
 			}
 			port.add_task(
 				[task, group, result]() {
@@ -126,9 +149,37 @@ void getaddrinfo_executer::delete_group(key_t group_id) {
 	groups[group_id]->is_deleted = true;
 	groups.erase(group_id);
 }
+void getaddrinfo_executer::interrupt() {
+	unique_lock<recursive_mutex> ul(m);
+	if (is_interrupted) {
+		return;
+	}
+	is_interrupted = true;
+	c_v.notify_all();
+	
+	while (threads.size() > 0) {
+		thread_ptr thread_p = move(threads.front().thread_p);
+		threads.pop_front();
+		
+		ul.unlock();
+		LOG("wait for thread completion\n");
+		thread_p->join();
+		LOG("wait for thread completion completed\n");
+		ul.lock();
+	}
+	destroy_thread();
+}
+
+getaddrinfo_executer::~getaddrinfo_executer() {
+	interrupt();
+}
 
 void getaddrinfo_executer::add_new_thread() {
-	lock_guard<recursive_mutex> lg(m);
+	if (is_interrupted) {
+		throw new socket_exception("getaddrinfo_executer already interrupted\n");
+	}
+	
+	LOG("in getaddrinfo_executer::add_new_thread\n");
 	
 	threads.emplace_back(*this);
 	
@@ -143,7 +194,14 @@ void getaddrinfo_executer::move_tasks_to_main_queue(group_ptr group) {
 		group->tasks_limit--;
 		
 		if (tasks.size() == 1) {
-			c_v.notify_one();
+			notify();
 		}
 	}
+}
+
+void getaddrinfo_executer::notify() {
+	if ((threads.size() - num_of_busy_threads == 0) && (threads.size() < max_number_of_threads)) {
+		add_new_thread();
+	}
+	c_v.notify_one();
 }

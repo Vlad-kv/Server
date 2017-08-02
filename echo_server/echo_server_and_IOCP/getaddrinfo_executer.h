@@ -5,7 +5,7 @@
 #include <cstring>
 #include <thread>
 #include <memory>
-#include <vector>
+#include <list>
 #include <mutex>
 #include <condition_variable>
 #include <queue>
@@ -18,7 +18,8 @@ class getaddrinfo_executer;
 #include "IO_completion_port.h"
 
 class getaddrinfo_executer {
-	// Предже всего берётся getaddrinfo_executer::m, затем 
+public:
+	// Предже всего берётся getaddrinfo_executer::m, затем thread_data::m
 	typedef long long key_t;
 	
 	struct group_data;
@@ -46,22 +47,24 @@ class getaddrinfo_executer {
 		int tasks_limit;
 	};
 	
-	static void working_thread(getaddrinfo_executer &this_executer, thread_data &data);
-	
-	static void destroy_thread(thread_ptr thread_p = nullptr);
-	
 	getaddrinfo_executer(IO_completion_port &port,
 						 int max_number_of_free_threads,
 						 int max_number_of_threads,
 						 int max_number_of_threads_per_group);
 	
-	void execute(key_t group_id, std::string pNodeName, std::string pServiceName, ADDRINFO &pHints, callback_t task);
+	void execute(key_t group_id, std::string pNodeName, std::string pServiceName, const ADDRINFO &pHints, callback_t task);
 	void delete_group(key_t group_id);
+	void interrupt();
 	
+	~getaddrinfo_executer();
 private:
+	static void working_thread(getaddrinfo_executer &this_executer, thread_data &data);
+	static void destroy_thread(thread_ptr thread_p = nullptr);
+	
 	void add_new_thread();
 	void move_tasks_to_main_queue(group_ptr group);
 	
+	void notify();
 private:
 	std::map<key_t, group_ptr> groups;
 	IO_completion_port &port;

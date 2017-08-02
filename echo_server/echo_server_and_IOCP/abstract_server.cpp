@@ -19,7 +19,6 @@ abstract_server::abstract_server(std::string addres_of_main_socket, int address_
 : address_family(address_family), type(type), protocol(protocol),
   s_soc(address_family, type, protocol, bind(create_client_socket_2, ref(*this), placeholders::_1)),
   comp_port(comp_port) {
-	
 	comp_port.registrate_on_interruption_event(
 		[this]() {
 			on_interruption();

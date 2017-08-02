@@ -3,7 +3,14 @@
 
 #include <sstream>
 #include <iostream>
+#include <mutex>
 
-#define LOG(s) std::cout << s
+extern std::mutex _log_mutex;
+
+#define LOG(s) \
+	{\
+		std::lock_guard<std::mutex> _LOG_lg(_log_mutex);\
+		std::cout << s;\
+	}
 
 #endif // LOGGER_H

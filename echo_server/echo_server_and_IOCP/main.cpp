@@ -10,17 +10,16 @@
 #include "socket.h"
 
 #include "timers.h"
-
+#include "test_server.h"
 using namespace std;
 
 const char* MAIN_SOCKET_ADDRES = "127.0.0.1";
-const int DEFAULT_BUFFER_SIZE = 1024;
 
 int main(int argc, char* argv[]) {
 	WSA_holder wsa_holder(MAKEWORD(2, 2));
 	{
 		IO_completion_port port;
-		
+		/*
 		echo_server server(MAIN_SOCKET_ADDRES, AF_INET, SOCK_STREAM, 0, 8001, port);
 		
 		server.add_task([](){cout << "Tasks works!\n";});
@@ -32,9 +31,13 @@ int main(int argc, char* argv[]) {
 				}
 		);
 		server.registrate_timer(t);
+		*/
+		test_server test_s(MAIN_SOCKET_ADDRES, AF_INET, SOCK_STREAM, 0, 8002, port);
+		
+		// TODO обработать случай гибели сервера до старта.
 		
 		port.start();
 	}
-//	Sleep(5000);
+	Sleep(10000);
 	return 0;
 }

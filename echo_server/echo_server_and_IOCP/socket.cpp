@@ -280,7 +280,5 @@ void server_socket::close() {
 }
 
 server_socket::~server_socket() {
-	if (sd.is_valid()) {
-		delete GuidAcceptEx;
-	}
+	close();
 }

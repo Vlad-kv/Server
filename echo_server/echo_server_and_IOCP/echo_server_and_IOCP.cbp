@@ -44,6 +44,7 @@
 		<Unit filename="echo_server.h" />
 		<Unit filename="getaddrinfo_executer.cpp" />
 		<Unit filename="getaddrinfo_executer.h" />
+		<Unit filename="logger.cpp" />
 		<Unit filename="logger.h" />
 		<Unit filename="main.cpp" />
 		<Unit filename="socket.cpp" />
@@ -51,6 +52,7 @@
 		<Unit filename="socket_descriptor.cpp" />
 		<Unit filename="socket_descriptor.h" />
 		<Unit filename="socket_exception.h" />
+		<Unit filename="test_server.h" />
 		<Unit filename="timers.cpp" />
 		<Unit filename="timers.h" />
 		<Extensions>

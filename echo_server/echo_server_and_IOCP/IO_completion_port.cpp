@@ -24,6 +24,24 @@ IO_completion_port::completion_key_decrementer::~completion_key_decrementer() {
 }
 
 ///---------------------------
+bool registration::operator=(registration &&reg) {
+	data_ptr = move(reg.data_ptr);
+}
+registration::registration()
+: data_ptr(nullptr) {
+}
+registration::registration(registration &&reg)
+: data_ptr(move(reg.data_ptr)) {
+}
+registration::registration(std::shared_ptr<bool> data_ptr)
+: data_ptr(data_ptr) {
+}
+registration::~registration() {
+	if (data_ptr != nullptr) {
+		*data_ptr = false;
+	}
+}
+///---------------------------
 
 atomic_bool IO_completion_port::is_interrapted(false);
 
@@ -153,8 +171,22 @@ void IO_completion_port::registrate_timer(timer& t) {
 	
 	notify();
 }
-void IO_completion_port::registrate_on_interruption_event(func_t func) {
-	on_interrupt_f.push_back(func);
+registration IO_completion_port::registrate_on_interruption_event(func_t func) {
+	shared_ptr<bool> is_registration_alive = make_shared<bool>(true);
+	on_interrupt_f.push_back(
+		[is_registration_alive, func]() {
+			if (*is_registration_alive) {
+				try {
+					func();
+				} catch (...) {
+					LOG("Exception in interruption_event\n");
+				}
+			} else {
+				LOG("Registration is invalid\n");
+			}
+		}
+	);
+	return registration(is_registration_alive);
 }
 
 void IO_completion_port::notify() {
@@ -218,7 +250,7 @@ void IO_completion_port::start() {
 			}
 			time_to_wait = get_time_to_wait();
 		}
-		
+		bool is_aborted = false;
 		int res = GetQueuedCompletionStatus(iocp_handle, &transmited_bytes, (LPDWORD)&received_key, 
 										(LPOVERLAPPED*)&overlapped, time_to_wait);
 		if (res == 0) {
@@ -227,8 +259,12 @@ void IO_completion_port::start() {
 				LOG("-");
 				continue;
 			}
-			throw new socket_exception("GetQueuedCompletionStatus failed with error "
-										+ to_string(error) + "\n");
+			if (error == WSA_OPERATION_ABORTED) {
+				is_aborted = true;
+			} else {
+				throw new socket_exception("GetQueuedCompletionStatus failed with error "
+											+ to_string(error) + "\n");
+			}
 		}
 		LOG("\n");
 		
@@ -245,6 +281,9 @@ void IO_completion_port::start() {
 				
 				socket_descriptor client = move(real_overlaped->sd);
 				delete real_overlaped;
+				if (is_aborted) {
+					continue;
+				}
 				
 				((server_socket*)received_key->ptr)->on_accept(move(client));
 				break;
@@ -254,6 +293,9 @@ void IO_completion_port::start() {
 										(client_socket::client_socket_overlapped*)overlapped;
 				int type = real_overlaped->type_of_operation;
 				delete real_overlaped;
+				if (is_aborted) {
+					continue;
+				}
 				
 				client_socket *real_ptr = (client_socket*)received_key->ptr;
 				

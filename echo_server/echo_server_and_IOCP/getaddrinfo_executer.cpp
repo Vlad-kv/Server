@@ -91,12 +91,6 @@ getaddrinfo_executer::getaddrinfo_executer(IO_completion_port &port,
 	
 	lock_guard<recursive_mutex> lg(m);
 	
-	port.registrate_on_interruption_event(
-		[this]() {
-			interrupt();
-		}
-	);
-	
 	for (int w = 0; w < max_number_of_free_threads; w++) {
 		add_new_thread();
 	}

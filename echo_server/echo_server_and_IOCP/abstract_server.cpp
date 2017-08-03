@@ -19,11 +19,11 @@ abstract_server::abstract_server(std::string addres_of_main_socket, int address_
 : address_family(address_family), type(type), protocol(protocol),
   s_soc(address_family, type, protocol, bind(create_client_socket_2, ref(*this), placeholders::_1)),
   comp_port(comp_port) {
-	comp_port.registrate_on_interruption_event(
+	on_int_reg = move(comp_port.registrate_on_interruption_event(
 		[this]() {
 			on_interruption();
 		}
-	);
+	));
 	
 	s_soc.bind_and_listen(address_family, addres_of_main_socket, port);
 	comp_port.registrate_socket(s_soc);

@@ -18,6 +18,7 @@ private:
 	server_socket s_soc;
 	IO_completion_port &comp_port;
 	long long next_id = 0;
+	registration on_int_reg;
 	
 	static void create_client_socket_2(abstract_server &this_server, client_socket client_s);
 	

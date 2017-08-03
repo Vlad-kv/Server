@@ -8,9 +8,11 @@
 #include <vector>
 #include <mutex>
 #include <list>
+#include <memory>
 
 class IO_completion_port;
 class timer_holder;
+class registration;
 
 #include "socket.h"
 #include "logger.h"
@@ -21,6 +23,22 @@ struct timer_holder {
 	timer_holder(timer *t = nullptr);
 	
 	friend bool operator<(const timer_holder& t_1, const timer_holder& t_2);
+};
+
+class registration {
+public:
+	friend class IO_completion_port;
+	
+	bool operator=(registration &&reg);
+	
+	registration(registration &&reg);
+	registration();
+	
+	~registration();
+private:
+	registration(std::shared_ptr<bool> data_ptr);
+	
+	std::shared_ptr<bool> data_ptr;
 };
 
 class IO_completion_port {
@@ -63,7 +81,8 @@ public:
 	void registrate_socket(server_socket& sock);
 	void registrate_socket(client_socket& sock);
 	void registrate_timer(timer& t);
-	void registrate_on_interruption_event(func_t func);
+	
+	registration registrate_on_interruption_event(func_t func);
 	
 	void notify();
 	

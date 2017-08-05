@@ -29,11 +29,10 @@ class registration {
 public:
 	friend class IO_completion_port;
 	
-	bool operator=(registration &&reg);
+	registration& operator=(registration &&reg);
 	
 	registration(registration &&reg);
 	registration();
-	
 	~registration();
 private:
 	registration(std::shared_ptr<bool> data_ptr);
@@ -54,18 +53,12 @@ private:
 	std::multiset<timer_holder> timers;
 	socket_descriptor to_notify;
 	char buff_to_notify[1], buff_to_get_notification[1];
-	client_socket notification_socket;
+	servers_client_socket notification_socket;
 	static std::atomic_bool is_interrapted;
 	std::atomic_flag is_already_started;
 	std::vector<func_t> on_interrupt_f;
 	std::list<func_t> tasks;
 	std::mutex m;
-	
-	struct completion_key_decrementer {
-		completion_key* key;
-		completion_key_decrementer(completion_key* key);
-		~completion_key_decrementer();
-	};
 	
 	static void signal_handler(int signal);
 	
@@ -78,8 +71,7 @@ public:
 	IO_completion_port(IO_completion_port &&port) = delete;
 	IO_completion_port();
 	
-	void registrate_socket(server_socket& sock);
-	void registrate_socket(client_socket& sock);
+	void registrate_socket(abstract_socket& sock);
 	void registrate_timer(timer& t);
 	
 	registration registrate_on_interruption_event(func_t func);

@@ -30,13 +30,13 @@ string to_str(const T& n) {
 	return stm.str();
 }
 
-client_socket accept_socket(const client_socket& sock);
+servers_client_socket accept_socket(const servers_client_socket& sock);
 
 void bind_socket(const server_socket& sock, short family, u_long addr, u_short port);
 
 void connect_to_socket(const socket_descriptor& connectSocket, short family, u_long addr, u_short port);
 
-void send_to_socket(const client_socket& sock, string mess);
+void send_to_socket(const servers_client_socket& sock, string mess);
 
 void blocking_send(const socket_descriptor& sock, string mess);
 

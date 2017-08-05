@@ -13,19 +13,10 @@ timer_holder::timer_holder(timer *t)
 : t(t) {
 }
 
-IO_completion_port::completion_key_decrementer::completion_key_decrementer(completion_key* key) 
-: key(key) {
-}
-IO_completion_port::completion_key_decrementer::~completion_key_decrementer() {
-	key->num_referenses--;
-	if (key->num_referenses == 0) {
-		delete key;
-	}
-}
-
 ///---------------------------
-bool registration::operator=(registration &&reg) {
+registration& registration::operator=(registration &&reg) {
 	data_ptr = move(reg.data_ptr);
+	return *this;
 }
 registration::registration()
 : data_ptr(nullptr) {
@@ -91,8 +82,8 @@ IO_completion_port::IO_completion_port()
 	to_notify.connect(AF_INET, new_address.sin_addr.s_addr, htons(new_address.sin_port));
 	
 	DWORD transmited_bytes;
-	completion_key* received_key;
-	OVERLAPPED* overlapped;
+	void* received_key;
+	abstract_overlapped* overlapped;
 	
 	int res = GetQueuedCompletionStatus(iocp_handle, &transmited_bytes, (LPDWORD)&received_key,
 										(LPOVERLAPPED*)&overlapped, INFINITE);
@@ -100,13 +91,10 @@ IO_completion_port::IO_completion_port()
 		throw new socket_exception("GetQueuedCompletionStatus failed with error "
 										+ to_string(GetLastError()) + "\n");
 	}
-	assert(received_key->type == completion_key::SERVER_SOCKET_KEY);
-	
-	completion_key_decrementer decrementer(received_key);
 	
 	server_socket::server_socket_overlapped *real_overlaped = 
-												(server_socket::server_socket_overlapped *)overlapped;
-	notification_socket = client_socket(move(real_overlaped->sd));
+												(server_socket::server_socket_overlapped*)overlapped;
+	notification_socket = move(servers_client_socket(move(real_overlaped->sd)));
 	delete real_overlaped;
 	
 	notification_socket.set_on_read_completion(
@@ -143,26 +131,11 @@ void IO_completion_port::close() {
 	}
 }
 
-void IO_completion_port::registrate_socket(server_socket& sock) {
-	completion_key *key = new completion_key(&sock);
-	HANDLE res = CreateIoCompletionPort((HANDLE)sock.sd.get_sd(), iocp_handle, (DWORD)key, 0);
+void IO_completion_port::registrate_socket(abstract_socket& sock) {
+	HANDLE res = CreateIoCompletionPort((HANDLE)sock.sd.get_sd(), iocp_handle, (ULONG_PTR)&(*sock.key), 0);
 	if (res == NULL) {
-		delete key;
 		throw new socket_exception("CreateIoCompletionPort failed with error : " + to_string(GetLastError()) + "\n");
 	}
-	sock.key = key;
-	key->num_referenses++;
-}
-void IO_completion_port::registrate_socket(client_socket& sock) {
-	completion_key *key = new completion_key(&sock);
-	HANDLE res = CreateIoCompletionPort((HANDLE)sock.sd.get_sd(), iocp_handle, (DWORD)key, 0);
-	
-	if (res == NULL) {
-		delete key;
-		throw new socket_exception("CreateIoCompletionPort failed with error : " + to_string(GetLastError()) + "\n");
-	}
-	sock.key = key;
-	key->num_referenses++;
 }
 void IO_completion_port::registrate_timer(timer& t) {
 	t.unregistrate();
@@ -210,8 +183,8 @@ void IO_completion_port::start() {
 	
 	DWORD transmited_bytes;
 	
-	completion_key* received_key;
-	OVERLAPPED* overlapped;
+	void* received_key;
+	abstract_overlapped* overlapped;
 	
 	socket_descriptor client;
 	
@@ -246,85 +219,28 @@ void IO_completion_port::start() {
 				t->on_time_expiration(t);
 			} catch (...) {
 				LOG("Exception in on_time_expiration\n");
-				/// TODO
 			}
 			time_to_wait = get_time_to_wait();
 		}
-		bool is_aborted = false;
+		
 		int res = GetQueuedCompletionStatus(iocp_handle, &transmited_bytes, (LPDWORD)&received_key, 
 										(LPOVERLAPPED*)&overlapped, time_to_wait);
+		
+		int error = 0;
 		if (res == 0) {
-			int error = GetLastError();
-			if (error == 258) {
+			error = GetLastError();
+			if (error == WAIT_TIMEOUT) {
 				LOG("-");
 				continue;
-			}
-			if (error == WSA_OPERATION_ABORTED) {
-				is_aborted = true;
-			} else {
-				throw new socket_exception("GetQueuedCompletionStatus failed with error "
-											+ to_string(error) + "\n");
 			}
 		}
 		LOG("\n");
 		
-		completion_key_decrementer decrementer(received_key);
-		
-		if (received_key->ptr == nullptr) {
-			continue;
-		}
-		
-		switch (received_key->type) {
-			case completion_key::SERVER_SOCKET_KEY : {
-				server_socket::server_socket_overlapped *real_overlaped = 
-												(server_socket::server_socket_overlapped *)overlapped;
-				
-				socket_descriptor client = move(real_overlaped->sd);
-				delete real_overlaped;
-				if (is_aborted) {
-					continue;
-				}
-				
-				((server_socket*)received_key->ptr)->on_accept(move(client));
-				break;
-			}
-			case completion_key::CLIENT_SOCKET_KEY : {
-				client_socket::client_socket_overlapped *real_overlaped = 
-										(client_socket::client_socket_overlapped*)overlapped;
-				int type = real_overlaped->type_of_operation;
-				delete real_overlaped;
-				if (is_aborted) {
-					continue;
-				}
-				
-				client_socket *real_ptr = (client_socket*)received_key->ptr;
-				
-				if (res == 0) {
-					if (GetLastError() == 64) {
-						LOG("connection interrupted\n");
-						real_ptr->execute_on_disconnect();
-						continue;
-					}
-					
-					if (real_ptr == nullptr) {
-						LOG("nullptr on client completion_key.");
-						continue;
-					}
-					
-					throw new socket_exception("Error in GetQueuedCompletionStatus : " +
-												to_string(GetLastError()) + "\n");
-				}
-				
-				if (type == client_socket::client_socket_overlapped::RECV_KEY) {
-					real_ptr->on_read_completion(transmited_bytes);
-					break;
-				}
-				if (type == client_socket::client_socket_overlapped::SEND_KEY) {
-					real_ptr->on_write_completion(transmited_bytes);
-					break;
-				}
-				throw new socket_exception("Uncnown operation code : " + to_string(type) + "\n");
-			}
+		try {
+			completion_key::key_ptr key = overlapped->key;
+			key->on_comp(transmited_bytes, key, overlapped, error);
+		} catch (...) {
+			LOG("Exception in on_comp (IO_completion_port)\n");
 		}
 	}
 	termination();

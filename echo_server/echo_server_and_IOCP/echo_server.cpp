@@ -2,7 +2,7 @@
 
 using namespace std;
 
-echo_server::client_data::client_data(client_socket_2 &&c_s)
+echo_server::client_data::client_data(servers_client_socket_2 &&c_s)
 : c_s(move(c_s)), buff(nullptr) {
 }
 
@@ -32,7 +32,7 @@ echo_server::echo_server(string addres_of_main_socket, int address_family, int t
 : abstract_server(addres_of_main_socket, address_family, type, protocol, port, comp_port) {
 }
 
-void echo_server::on_accept(client_socket_2 client_soc) {
+void echo_server::on_accept(servers_client_socket_2 client_soc) {
 	int id = client_soc.get_id();
 	client_sockets[id] = client_data(move(client_soc));
 	

@@ -33,7 +33,7 @@ public:
 		}
 	}
 	
-	void on_accept(client_socket_2 client_s) override {
+	void on_accept(servers_client_socket_2 client_s) override {
 		LOG("in on_accept\n");
 	}
 	

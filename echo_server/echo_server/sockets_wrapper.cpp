@@ -4,12 +4,12 @@
 const int BUFFER_SIZE = 1024;
 char buffer[BUFFER_SIZE];
 
-client_socket accept_socket(const client_socket& sock) {
+servers_client_socket accept_socket(const servers_client_socket& sock) {
 	SOCKET res = accept(sock.get_sd(), 0, 0);
 	if (res == INVALID_SOCKET) {
 		throw new socket_exception("Accept failed with error " + to_str(WSAGetLastError()) + "\n");
 	}
-	return client_socket(res);
+	return servers_client_socket(res);
 }
 
 void bind_socket(const server_socket& sock, short family, u_long addr, u_short port) {
@@ -39,7 +39,7 @@ void connect_to_socket(const socket_descriptor& connectSocket, short family, u_l
 	}
 }
 
-void send_to_socket(const client_socket& sock, string mess) {
+void send_to_socket(const servers_client_socket& sock, string mess) {
 	size_t sended_bytes = 0;
 	while (sended_bytes < mess.length()) {
 		int res = send(sock.get_sd(), (&mess[0]) + sended_bytes, mess.length() - sended_bytes, 0);

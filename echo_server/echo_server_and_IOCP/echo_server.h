@@ -13,11 +13,11 @@ public:
 	echo_server(string addres_of_main_socket, int address_family, int type, int protocol, int port, IO_completion_port &comp_port);
 private:
 	struct client_data {
-		client_socket_2 c_s;
+		servers_client_socket_2 c_s;
 		char* buff;
 		int data_size, sended_size;
 		
-		client_data(client_socket_2 &&c_s);
+		client_data(servers_client_socket_2 &&c_s);
 		client_data();
 		
 		client_data& operator=(client_data &&c_d);
@@ -27,7 +27,7 @@ private:
 	
 	map<long long, client_data> client_sockets;
 	
-	void on_accept(client_socket_2 client_soc) override;
+	void on_accept(servers_client_socket_2 client_soc) override;
 	void on_interruption() override;
 	
 	static void on_read_completion(echo_server *this_server, client_data *client_d, size_t size);

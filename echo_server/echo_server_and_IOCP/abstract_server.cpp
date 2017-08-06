@@ -21,6 +21,7 @@ abstract_server::abstract_server(std::string addres_of_main_socket, int address_
   comp_port(comp_port) {
 	on_int_reg = move(comp_port.registrate_on_interruption_event(
 		[this]() {
+			s_soc.close();
 			on_interruption();
 		}
 	));

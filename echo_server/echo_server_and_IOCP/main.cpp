@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
 		server.registrate_timer(t);
 		*/
 		
-//		test_server test_s(MAIN_SOCKET_ADDRES, AF_INET, SOCK_STREAM, 0, 8002, port);
+		test_server test_s(MAIN_SOCKET_ADDRES, AF_INET, SOCK_STREAM, 0, 8002, port);
 		
 		port.start();
 	}

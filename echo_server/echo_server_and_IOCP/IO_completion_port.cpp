@@ -50,7 +50,34 @@ int IO_completion_port::get_time_to_wait() {
 	return res;
 }
 
+void IO_completion_port::wait_to_comp_and_exec(int time_to_wait) {
+	DWORD transmited_bytes;
+	void* received_key;
+	abstract_overlapped* overlapped;
+	
+	int res = GetQueuedCompletionStatus(iocp_handle, &transmited_bytes, (LPDWORD)&received_key, 
+										(LPOVERLAPPED*)&overlapped, time_to_wait);
+	
+	int error = 0;
+	if (res == 0) {
+		error = GetLastError();
+		if (error == WAIT_TIMEOUT) {
+			LOG("-");
+			return;
+		}
+	}
+	LOG("\n");
+	
+	try {
+		completion_key::key_ptr key = overlapped->key;
+		key->on_comp(transmited_bytes, key, overlapped, error);
+	} catch (...) {
+		LOG("Exception in on_comp (IO_completion_port)\n");
+	}
+}
+
 void IO_completion_port::termination() {
+	is_terminated = true;
 	while (timers.size() > 0) {
 		(*timers.begin()).t->unregistrate();
 	}
@@ -61,6 +88,12 @@ void IO_completion_port::termination() {
 		} catch (...) {
 			LOG("Exception in on_interruption_event\n");
 		}
+	}
+	notification_socket->close();
+	
+	while (completion_key::counter_of_items > 0) {
+		LOG("waiting for completion of all operations (" << completion_key::counter_of_items << ")\n");
+		wait_to_comp_and_exec(INFINITE);
 	}
 }
 
@@ -94,22 +127,24 @@ IO_completion_port::IO_completion_port()
 	
 	server_socket::server_socket_overlapped *real_overlaped = 
 												(server_socket::server_socket_overlapped*)overlapped;
-	notification_socket = move(servers_client_socket(move(real_overlaped->sd)));
+	notification_socket = make_unique<servers_client_socket>(move(real_overlaped->sd));
 	delete real_overlaped;
 	
-	notification_socket.set_on_read_completion(
+	notification_socket->set_on_read_completion(
 		[this](int size) {
 			if (size == 0) {
 				
 				/// TODO
 			} else {
 				LOG("Notification completed.\n");
-				notification_socket.read_some(buff_to_get_notification, 1);
+				if (!is_terminated) {
+					notification_socket->read_some(buff_to_get_notification, 1);
+				}
 			}
 		}
 	);
-	registrate_socket(notification_socket);
-	notification_socket.read_some(buff_to_get_notification, 1);
+	registrate_socket(*notification_socket);
+	notification_socket->read_some(buff_to_get_notification, 1);
 	
 	if (is_interrapted.is_lock_free()) {
 		auto res = signal(SIGINT, signal_handler);
@@ -132,10 +167,21 @@ void IO_completion_port::close() {
 }
 
 void IO_completion_port::registrate_socket(abstract_socket& sock) {
+	if (sock.is_registrated) {
+		throw new socket_exception("socket already registrated\n");
+	}
+	if (!sock.sd.is_valid()) {
+		throw new socket_exception("socket not valid\n\n");
+	}
+	if (is_terminated) {
+		throw new socket_exception("IO_completion_port already terminated\n");
+	}
 	HANDLE res = CreateIoCompletionPort((HANDLE)sock.sd.get_sd(), iocp_handle, (ULONG_PTR)&(*sock.key), 0);
 	if (res == NULL) {
 		throw new socket_exception("CreateIoCompletionPort failed with error : " + to_string(GetLastError()) + "\n");
 	}
+	sock.port_ptr = port_ptr;
+	sock.is_registrated = true;
 }
 void IO_completion_port::registrate_timer(timer& t) {
 	t.unregistrate();
@@ -163,6 +209,9 @@ registration IO_completion_port::registrate_on_interruption_event(func_t func) {
 }
 
 void IO_completion_port::notify() {
+	if (is_terminated) {
+		return;
+	}
 	int res = send(to_notify.get_sd(), buff_to_notify, 1, 0);
 	if (res == SOCKET_ERROR) {
 		int error = WSAGetLastError();
@@ -172,7 +221,7 @@ void IO_completion_port::notify() {
 
 void IO_completion_port::add_task(func_t func) {
 	lock_guard<mutex> lg(m);
-	tasks.push_back(func);
+	tasks.push(func);
 	notify();
 }
 
@@ -180,22 +229,14 @@ void IO_completion_port::start() {
 	if (is_already_started.test_and_set()) {
 		throw new socket_exception("IO_completion_port already started\n");
 	}
-	
-	DWORD transmited_bytes;
-	
-	void* received_key;
-	abstract_overlapped* overlapped;
-	
-	socket_descriptor client;
-	
 	while (!is_interrapted.load()) {
 		{
 			func_t task_to_execute = nullptr;
 			{
 				lock_guard<mutex> lg(m);
 				if (tasks.size() > 0) {
-					task_to_execute = *tasks.begin();
-					tasks.pop_front();
+					task_to_execute = tasks.front();
+					tasks.pop();
 				}
 			}
 			if (task_to_execute != nullptr) {
@@ -222,26 +263,7 @@ void IO_completion_port::start() {
 			}
 			time_to_wait = get_time_to_wait();
 		}
-		
-		int res = GetQueuedCompletionStatus(iocp_handle, &transmited_bytes, (LPDWORD)&received_key, 
-										(LPOVERLAPPED*)&overlapped, time_to_wait);
-		
-		int error = 0;
-		if (res == 0) {
-			error = GetLastError();
-			if (error == WAIT_TIMEOUT) {
-				LOG("-");
-				continue;
-			}
-		}
-		LOG("\n");
-		
-		try {
-			completion_key::key_ptr key = overlapped->key;
-			key->on_comp(transmited_bytes, key, overlapped, error);
-		} catch (...) {
-			LOG("Exception in on_comp (IO_completion_port)\n");
-		}
+		wait_to_comp_and_exec(time_to_wait);
 	}
 	termination();
 }
@@ -252,4 +274,5 @@ IO_completion_port::~IO_completion_port() {
 	} catch (const socket_exception *ex) {
 		LOG("Exception in destructor of IO_completion_port");
 	}
+	*port_ptr = nullptr;
 }

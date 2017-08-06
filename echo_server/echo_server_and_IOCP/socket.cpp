@@ -1,18 +1,17 @@
+#include <cassert>
 #include "socket.h"
-
 using namespace std;
 
-
-int completion_key::debug_counter = 0;
+int completion_key::counter_of_items = 0;
 
 completion_key::completion_key(abstract_socket *ptr, on_comp_t on_comp)
 : ptr(ptr), on_comp(on_comp) {
-	debug_counter++;
-	cout << "(+) " << debug_counter << "\n";
+	counter_of_items++;
+	cout << "(+) " << counter_of_items << "\n";
 }
 completion_key::~completion_key() {
-	debug_counter--;
-	cout << "(-) " << debug_counter << "\n";
+	counter_of_items--;
+	cout << "(-) " << counter_of_items << "\n";
 }
 
 abstract_socket* completion_key::get_ptr() const {
@@ -21,6 +20,10 @@ abstract_socket* completion_key::get_ptr() const {
 
 abstract_overlapped::abstract_overlapped(const abstract_socket &this_socket)
 : key(this_socket.key) {
+	assert(this_socket.is_registrated); // socket is not registrated
+	assert((*this_socket.port_ptr) != nullptr); //IO_completion_port already closed
+	assert(!(*this_socket.port_ptr)->is_terminated); //IO_completion_port already terminated
+	
 	SecureZeroMemory((PVOID) &overlapped, sizeof(OVERLAPPED));
 }
 
@@ -34,13 +37,20 @@ abstract_socket::abstract_socket(on_comp_t f, int address_family, int type, int 
 : key(make_shared<completion_key>(this, f)), sd(address_family, type, protocol) {
 }
 abstract_socket::abstract_socket(abstract_socket &&abs_socket)
-: key(move(abs_socket.key)), sd(move(abs_socket.sd)) {
+: key(move(abs_socket.key)), is_registrated(abs_socket.is_registrated),
+  port_ptr(move(abs_socket.port_ptr)), sd(move(abs_socket.sd)) {
 	key->ptr = this;
+	abs_socket.is_registrated = false;
 }
 
 abstract_socket& abstract_socket::operator=(abstract_socket &&abs_socket) {
+	close_comp_key();
 	key = move(abs_socket.key);
 	key->ptr = this;
+	
+	is_registrated = abs_socket.is_registrated;
+	abs_socket.is_registrated = false;
+	port_ptr = move(abs_socket.port_ptr);
 	
 	sd = move(abs_socket.sd);
 	return *this;

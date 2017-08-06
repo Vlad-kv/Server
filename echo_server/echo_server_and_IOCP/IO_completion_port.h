@@ -7,7 +7,7 @@
 #include <atomic>
 #include <vector>
 #include <mutex>
-#include <list>
+#include <queue>
 #include <memory>
 
 class IO_completion_port;
@@ -45,6 +45,7 @@ public:
 	typedef std::function<void ()> func_t;
 private:
 	friend timer;
+	friend struct abstract_overlapped;
 	
 	static const int MAX_TIME_TO_WAIT = 500;
 	static_assert(MAX_TIME_TO_WAIT > 0);
@@ -53,16 +54,20 @@ private:
 	std::multiset<timer_holder> timers;
 	socket_descriptor to_notify;
 	char buff_to_notify[1], buff_to_get_notification[1];
-	servers_client_socket notification_socket;
+	std::unique_ptr<servers_client_socket> notification_socket;
 	static std::atomic_bool is_interrapted;
+	bool is_terminated = false;
 	std::atomic_flag is_already_started;
 	std::vector<func_t> on_interrupt_f;
-	std::list<func_t> tasks;
+	std::queue<func_t> tasks;
 	std::mutex m;
+	
+	std::shared_ptr<IO_completion_port*> port_ptr = std::make_shared<IO_completion_port*>(this);
 	
 	static void signal_handler(int signal);
 	
 	int get_time_to_wait();
+	void wait_to_comp_and_exec(int time_to_wait);
 	
 	void termination();
 	

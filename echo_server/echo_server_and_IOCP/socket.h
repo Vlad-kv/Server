@@ -15,6 +15,7 @@ struct abstract_overlapped;
 
 #include "logger.h"
 #include "socket_descriptor.h"
+#include "IO_completion_port.h"
 
 /**
 	
@@ -35,7 +36,7 @@ public:
 	abstract_socket* get_ptr() const;
 	~completion_key();
 private:
-	static int debug_counter;
+	static int counter_of_items;
 	
 	abstract_socket *ptr;
 	on_comp_t on_comp;
@@ -74,6 +75,8 @@ public:
 	
 private:
 	key_ptr key;
+	bool is_registrated = false;
+	std::shared_ptr<IO_completion_port*> port_ptr = nullptr;
 protected:
 	socket_descriptor sd;
 };

@@ -6,10 +6,10 @@ long long abstract_server::get_unic_id() {
 	return (next_id++);
 }
 
-void abstract_server::create_client_socket_2(abstract_server &this_server, servers_client_socket client_s) {
+void abstract_server::create_client_socket_2(abstract_server &this_server, client_socket client_s) {
 	this_server.comp_port.registrate_socket(client_s);
 	
-	servers_client_socket_2 client_s_2(move(client_s), &this_server, this_server.get_unic_id());
+	client_socket_2 client_s_2(move(client_s), this_server.get_unic_id());
 	
 	this_server.on_accept(move(client_s_2));
 }

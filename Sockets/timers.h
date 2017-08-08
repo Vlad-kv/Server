@@ -28,11 +28,14 @@ class timer {
 public:
 	
 	timer(std::chrono::microseconds interval, func_t on_time_expiration);
+	timer(timer &&t);
 	
 	void unregistrate();
 	void restart();
 	
 	friend bool operator<(const timer& t_1, const timer& t_2);
+	timer& operator=(timer &&t);
+	timer& operator=(const timer& t) = delete;
 	
 	~timer();
 };

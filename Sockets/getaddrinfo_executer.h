@@ -48,9 +48,9 @@ public:
 	};
 	
 	getaddrinfo_executer(IO_completion_port &port,
-						 int max_number_of_free_threads,
-						 int max_number_of_threads,
-						 int max_number_of_threads_per_group);
+						 size_t max_number_of_free_threads,
+						 size_t max_number_of_threads,
+						 size_t max_number_of_threads_per_group);
 	
 	void execute(key_t group_id, std::string pNodeName, std::string pServiceName, const ADDRINFO &pHints, callback_t task);
 	void delete_group(key_t group_id);
@@ -71,9 +71,9 @@ private:
 	std::list<thread_data> threads;
 	std::queue<std::pair<group_ptr, func_t>> tasks;
 	
-	const int max_number_of_free_threads;
-	const int max_number_of_threads;
-	const int max_number_of_threads_per_group;
+	const size_t max_number_of_free_threads;
+	const size_t max_number_of_threads;
+	const size_t max_number_of_threads_per_group;
 	
 	int num_of_busy_threads = 0;
 	bool is_interrupted = false;

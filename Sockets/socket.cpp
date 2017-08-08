@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cstring>
 #include "socket.h"
 using namespace std;
 
@@ -67,31 +68,89 @@ abstract_socket::~abstract_socket() {
 }
 ///------------------------------------------
 
-servers_client_socket::servers_client_socket_overlapped::servers_client_socket_overlapped(const abstract_socket &this_socket, int type, char* buff, size_t size)
-: abstract_overlapped(this_socket), type_of_operation(type) {
+recv_send_overlapped::recv_send_overlapped(const abstract_socket &this_socket, int type, char* buff, size_t size, void *buff_ptr)
+: abstract_overlapped(this_socket), type_of_operation(type), buff_ptr(buff_ptr) {
 	this->buff.buf = buff;
 	this->buff.len = size;
 }
+void* recv_send_overlapped::release_buff_ptr() {
+	void *temp = buff_ptr;
+	buff_ptr = nullptr;
+	return temp;
+}
+recv_send_overlapped::~recv_send_overlapped() {
+	if (type_of_operation == RECV_KEY) {
+		delete (buffer_to_read*)buff_ptr;
+	} else {
+		delete (buffer_to_write*)buff_ptr;
+	}
+}
 
-void servers_client_socket::on_completion(DWORD transmited_bytes,
+///------------------------------------------
+
+buffer_to_read::buffer_to_read(size_t size)
+: size(size) {
+	assert(size > 0);
+	buffer = new char[size];
+}
+void buffer_to_read::resize(size_t new_size) {
+	assert(new_size > 0);
+	char *new_buffer = new char[new_size];
+	delete []buffer;
+	buffer = new_buffer;
+	size = new_size;
+}
+buffer_to_read::~buffer_to_read() {
+	delete []buffer;
+}
+
+///------------------------------------------
+
+buffer_to_write::buffer_to_write()
+: start_pos(0) {
+}
+size_t buffer_to_write::get_saved_size() {
+	return buffer.size() - start_pos;
+}
+
+void buffer_to_write::reset() {
+	start_pos = 0;
+	buffer.clear();
+}
+void buffer_to_write::write_to_buffer(const char *buff, size_t size) {
+	reset();
+	for (size_t w = 0; w < size; w++) {
+		buffer.push_back(buff[w]);
+	}
+}
+
+///------------------------------------------
+
+void client_socket::on_completion(DWORD transmited_bytes,
 		const key_ptr key, abstract_overlapped *overlapped, int error) {
-	servers_client_socket_overlapped *real_overlaped = 
-							reinterpret_cast<servers_client_socket_overlapped*>(overlapped);
+	recv_send_overlapped *real_overlaped = 
+							reinterpret_cast<recv_send_overlapped*>(overlapped);
 	int type = real_overlaped->type_of_operation;
+	void *buff_ptr = real_overlaped->release_buff_ptr();
+	
 	delete real_overlaped;
+	
+	client_socket *real_ptr = (client_socket*)key->get_ptr();
+	if (real_ptr == nullptr) {
+		LOG("socket already closed.");
+		return;
+	}
+	if (type == recv_send_overlapped::RECV_KEY) {
+		real_ptr->b_to_read = (buffer_to_read*)buff_ptr;
+	}
+	if (type == recv_send_overlapped::SEND_KEY) {
+		real_ptr->b_to_write = (buffer_to_write*)buff_ptr;
+	}
 	
 	if (error == WSA_OPERATION_ABORTED) {
 		LOG("servers_client_socket operation aborted\n");
 		return;
 	}
-	
-	servers_client_socket *real_ptr = (servers_client_socket*)key->get_ptr();
-	
-	if (real_ptr == nullptr) {
-		LOG("socket already closed.");
-		return;
-	}
-	
 	if (error != 0) {
 		if (error == 64) {
 			LOG("connection interrupted\n");
@@ -101,47 +160,68 @@ void servers_client_socket::on_completion(DWORD transmited_bytes,
 		throw new socket_exception("Error in GetQueuedCompletionStatus : " +
 									to_string(GetLastError()) + "\n");
 	}
-	
-	if (type == servers_client_socket::servers_client_socket_overlapped::RECV_KEY) {
-		real_ptr->on_read_completion(transmited_bytes);
+	if (type == recv_send_overlapped::RECV_KEY) {
+		real_ptr->on_read_completion(real_ptr->b_to_read->buffer, transmited_bytes);
 		return;
 	}
-	if (type == servers_client_socket::servers_client_socket_overlapped::SEND_KEY) {
-		real_ptr->on_write_completion(transmited_bytes);
+	if (type == recv_send_overlapped::SEND_KEY) {
+		real_ptr->b_to_write->start_pos += transmited_bytes;
+		real_ptr->on_write_completion(real_ptr->b_to_write->get_saved_size(), transmited_bytes);
 		return;
 	}
 	throw new socket_exception("Uncnown operation code : " + to_string(type) + "\n");
 }
 
-servers_client_socket::servers_client_socket()
+client_socket::client_socket()
 : abstract_socket(on_completion) {
 }
-servers_client_socket::servers_client_socket(socket_descriptor &&sd)
+client_socket::client_socket(socket_descriptor &&sd, size_t read_buffer_size)
 : abstract_socket(on_completion, move(sd)) {
+	b_to_read = new buffer_to_read(read_buffer_size);
+	try {
+		b_to_write = new buffer_to_write();
+	} catch (...) {
+		delete b_to_read;
+		b_to_read = nullptr;
+		throw;
+	}
 }
-servers_client_socket::servers_client_socket(servers_client_socket &&other)
+client_socket::client_socket(client_socket &&other)
 : abstract_socket(on_completion) {
 	*this = move(other);
 }
-servers_client_socket::servers_client_socket(int address_family, int type, int protocol)
+client_socket::client_socket(int address_family, int type, int protocol, size_t read_buffer_size)
 : abstract_socket(on_completion, address_family, type, protocol) {
+	b_to_read = new buffer_to_read(read_buffer_size);
+	try {
+		b_to_write = new buffer_to_write();
+	} catch (...) {
+		delete b_to_read;
+		b_to_read = nullptr;
+		throw;
+	}
 }
 
-void servers_client_socket::set_on_read_completion(func_rw_t on_read_completion) {
+void client_socket::set_on_read_completion(func_read_t on_read_completion) {
 	this->on_read_completion = on_read_completion;
 }
-void servers_client_socket::set_on_write_completion(func_rw_t on_write_completion) {
+void client_socket::set_on_write_completion(func_write_t on_write_completion) {
 	this->on_write_completion = on_write_completion;
 }
-void servers_client_socket::set_on_disconnect(func_disc_t on_disconnect) {
+void client_socket::set_on_disconnect(func_disc_t on_disconnect) {
 	this->on_disconnect = on_disconnect;
 }
 
-void servers_client_socket::read_some(char *buff, size_t size) {
+void client_socket::read_some() {
+	if (b_to_read == nullptr) {
+		throw new socket_exception("previous operation uncompleted\n");
+	}
 	DWORD received_bytes;
 	DWORD flags = 0;
-	servers_client_socket_overlapped* overlapped = new servers_client_socket_overlapped(*this, servers_client_socket_overlapped::RECV_KEY,
-																		buff, size);
+	
+	recv_send_overlapped* overlapped = new recv_send_overlapped(*this, recv_send_overlapped::RECV_KEY,
+																b_to_read->buffer, b_to_read->size, b_to_read);
+	b_to_read = nullptr;
 	
 	if (WSARecv(sd.get_sd(), &overlapped->buff, 1, &received_bytes/*unused*/, &flags,
 			&overlapped->overlapped, NULL) == SOCKET_ERROR) {
@@ -149,27 +229,39 @@ void servers_client_socket::read_some(char *buff, size_t size) {
 					if ((error == 10054) || (error == 10053)) {
 						LOG("In WSARecv connection broken.\n");
 						
+						b_to_read = (buffer_to_read*)overlapped->release_buff_ptr();
 						delete overlapped;
-						on_disconnect();
+						execute_on_disconnect();
 						return;
 					}
 					if (error != ERROR_IO_PENDING) {
+						b_to_read = (buffer_to_read*)overlapped->release_buff_ptr();
 						delete overlapped;
-						on_disconnect();
+						execute_on_disconnect();
 						throw new socket_exception("Error in WSARecv : " + to_string(error) + "\n");
 					}
 	}
 }
 
-void servers_client_socket::write_some(const char *buff, size_t size) {
+void client_socket::write_some(const char *buff, size_t size) {
+	assert(size > 0);
 	{
 		LOG("Sending bytes : ");
 		LOG(size << "\n");
 	}
+	b_to_write->write_to_buffer(buff, size);
+	write_some_saved_bytes();
+}
+
+void client_socket::write_some_saved_bytes() {
+	assert(b_to_write->buffer.size() > 0);
 	
 	DWORD received_bytes;
-	servers_client_socket_overlapped *overlapped = new servers_client_socket_overlapped(*this, servers_client_socket_overlapped::SEND_KEY,
-																		const_cast<char*>(buff), size);
+	recv_send_overlapped *overlapped = new recv_send_overlapped(*this, recv_send_overlapped::SEND_KEY,
+																&(b_to_write->buffer[b_to_write->start_pos]),
+																b_to_write->buffer.size() - b_to_write->start_pos,
+																b_to_write);
+	b_to_write = nullptr;
 	
 	if (WSASend(sd.get_sd(), &overlapped->buff, 1, &received_bytes/*unused*/, 0, 
 				&overlapped->overlapped, NULL) == SOCKET_ERROR) {
@@ -177,34 +269,80 @@ void servers_client_socket::write_some(const char *buff, size_t size) {
 					if (error == 10054) { // подключение разорвано
 						LOG("In WSASend connection broken.\n");
 						
+						b_to_write = (buffer_to_write*)overlapped->release_buff_ptr();
 						delete overlapped;
-						on_disconnect();
+						execute_on_disconnect();
 						return;
 					}
 					if (error != ERROR_IO_PENDING) {
+						b_to_write = (buffer_to_write*)overlapped->release_buff_ptr();
 						delete overlapped;
-						on_disconnect();
+						execute_on_disconnect();
 						throw new socket_exception("Error in WSASend : " + to_string(error) + "\n");
 					}
 	}
 }
+size_t client_socket::get_num_of_saved_bytes() {
+	if (b_to_write == nullptr) {
+		throw new socket_exception("write operation is not completed\n");
+	}
+	return b_to_write->get_saved_size();
+}
 
-void servers_client_socket::execute_on_disconnect() {
+void client_socket::connect(short family, const std::string& addr, u_short port) {
+	if (is_connected) {
+		throw new socket_exception("client_socket already connected\n");
+	}
+	sockaddr_in addres;
+	
+	addres.sin_family = family;
+	addres.sin_addr.s_addr = inet_addr(&addr[0]);
+	addres.sin_port = htons(port);
+	
+	int res = ::connect(sd.get_sd(), (SOCKADDR*) &addres, sizeof(addres));
+	if (res == SOCKET_ERROR) {
+		throw new socket_exception("Connect function failed with error " + to_string(WSAGetLastError()) + "\n");
+	}
+	is_connected = true;
+}
+
+void client_socket::shutdown_reading() {
+	if (!is_connected) {
+		throw new socket_exception("client_socket is not connected\n");
+	}
+	if (shutdown(sd.get_sd(), SD_RECEIVE)) {
+		int error = WSAGetLastError();
+		throw new socket_exception("shutdown failed with error : " + to_string(error) + "\n");
+	}
+}
+void client_socket::shutdown_writing() {
+	if (!is_connected) {
+		throw new socket_exception("client_socket is not connected\n");
+	}
+	if (shutdown(sd.get_sd(), SD_SEND)) {
+		int error = WSAGetLastError();
+		throw new socket_exception("shutdown failed with error : " + to_string(error) + "\n");
+	}
+}
+
+void client_socket::execute_on_disconnect() {
 	if (on_disconnect != nullptr) {
-		func_disc_t temp = on_disconnect;
+		func_disc_t temp = move(on_disconnect);
 		on_disconnect = nullptr;
 		temp();
 	}
 }
 
-void servers_client_socket::close() {
+void client_socket::close() {
 	if (sd.is_valid()) {
+		delete b_to_read;
+		delete b_to_write;
 		sd.close();
 		close_comp_key();
 		execute_on_disconnect();
 	}
 }
-servers_client_socket::~servers_client_socket() {
+client_socket::~client_socket() {
 	try {
 		close();
 	} catch (...) {
@@ -212,22 +350,24 @@ servers_client_socket::~servers_client_socket() {
 	}
 }
 
-servers_client_socket& servers_client_socket::operator=(servers_client_socket&& c_s) {
+client_socket& client_socket::operator=(client_socket&& c_s) {
 	close();
 	
-	on_read_completion = c_s.on_read_completion;
-	on_write_completion = c_s.on_write_completion;
-	on_disconnect = c_s.on_disconnect;
+	on_read_completion = move(c_s.on_read_completion);
+	on_write_completion = move(c_s.on_write_completion);
+	on_disconnect = move(c_s.on_disconnect);
 	
-	c_s.on_read_completion = nullptr;
-	c_s.on_write_completion = nullptr;
-	c_s.on_disconnect = nullptr;
+	b_to_read = c_s.b_to_read;
+	b_to_write = c_s.b_to_write;
+	
+	c_s.b_to_read = nullptr;
+	c_s.b_to_write = nullptr;
 	
 	*(abstract_socket*)this = move(c_s);
 	return *this;
 }
 
-unsigned int servers_client_socket::get_sd() const {
+unsigned int client_socket::get_sd() const {
 	return sd.get_sd();
 }
 
@@ -242,7 +382,10 @@ void server_socket::on_completion(DWORD transmited_bytes,
 	server_socket_overlapped *real_overlaped = 
 								reinterpret_cast<server_socket_overlapped*>(overlapped);
 	
-	socket_descriptor client = move(real_overlaped->sd);
+	LOG("in server_socket::on_completion\n");
+	
+	client_socket client(move(real_overlaped->sd));
+	client.is_connected = true;
 	delete real_overlaped;
 	
 	if (error == WSA_OPERATION_ABORTED) {
@@ -308,9 +451,16 @@ server_socket& server_socket::operator=(server_socket &&sock) {
 	return *this;
 }
 
-void server_socket::bind_and_listen(int address_family, std::string addres_of_main_socket, int port, int backlog) {
-	bind_socket(*this, address_family, inet_addr(&addres_of_main_socket[0]), htons(port));
+void server_socket::bind_and_listen(short address_family, std::string socket_address, int port, int backlog) {
+	sockaddr_in addres;
 	
+	addres.sin_family = address_family;
+	addres.sin_addr.s_addr = inet_addr(&socket_address[0]);
+	addres.sin_port = htons(port);
+	
+	if (SOCKET_ERROR == ::bind(sd.get_sd(), (SOCKADDR*)&addres, sizeof(addres))) {
+		throw new socket_exception("bind failed with error " + to_string(WSAGetLastError()) + "\n");
+	}
 	if (listen(sd.get_sd(), backlog) == SOCKET_ERROR) {
 		throw new socket_exception("listen failed with error " + to_string(WSAGetLastError()) + "\n");
 	}

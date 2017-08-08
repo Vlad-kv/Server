@@ -1,7 +1,6 @@
 ﻿#include "timers.h"
 #include "cassert"
 #include "logger.h"
-
 using namespace std;
 
 void timer::unregistrate() {
@@ -17,6 +16,12 @@ timer::timer(std::chrono::microseconds interval, func_t on_time_expiration)
 : on_time_expiration(on_time_expiration) {
 	this->interval = interval;
 	expiration = chrono::steady_clock::now() + this->interval;
+}
+timer::timer(timer &&t)
+: on_time_expiration(move(t.on_time_expiration)),
+  expiration(t.expiration), interval(t.interval) {
+	t.unregistrate();
+	port->registrate_timer(*this);
 }
 
 void timer::restart() {
@@ -36,7 +41,17 @@ void timer::restart() {
 bool operator<(const timer& t_1, const timer& t_2) {
 	return (t_1.expiration < t_2.expiration);
 }
-
+timer& timer::operator=(timer &&t) {
+	unregistrate();
+	
+	on_time_expiration = move(t.on_time_expiration);
+	expiration = t.expiration;
+	interval = t.interval;
+	potr = t.port;
+	
+	t.unregistrate();
+	port.registrate_timer(*this);
+}
 timer::~timer() {
 	unregistrate();
 }

@@ -1,8 +1,8 @@
-#include "IO_completion_port.h"
 #include <thread>
 #include <cassert>
 #include <signal.h>
 
+#include "IO_completion_port.h"
 using namespace std;
 
 bool operator<(const timer_holder& t_1, const timer_holder& t_2) {
@@ -127,24 +127,24 @@ IO_completion_port::IO_completion_port()
 	
 	server_socket::server_socket_overlapped *real_overlaped = 
 												(server_socket::server_socket_overlapped*)overlapped;
-	notification_socket = make_unique<servers_client_socket>(move(real_overlaped->sd));
+	notification_socket = make_unique<client_socket>(move(real_overlaped->sd), 1);
 	delete real_overlaped;
 	
 	notification_socket->set_on_read_completion(
-		[this](int size) {
+		[this](const char* buff, int size) {
 			if (size == 0) {
 				
 				/// TODO
 			} else {
 				LOG("Notification completed.\n");
 				if (!is_terminated) {
-					notification_socket->read_some(buff_to_get_notification, 1);
+					notification_socket->read_some();
 				}
 			}
 		}
 	);
 	registrate_socket(*notification_socket);
-	notification_socket->read_some(buff_to_get_notification, 1);
+	notification_socket->read_some();
 	
 	if (is_interrapted.is_lock_free()) {
 		auto res = signal(SIGINT, signal_handler);
@@ -208,6 +208,9 @@ registration IO_completion_port::registrate_on_interruption_event(func_t func) {
 	return registration(is_registration_alive);
 }
 
+void IO_completion_port::interrupt() {
+	is_interrapted.store(true);
+}
 void IO_completion_port::notify() {
 	if (is_terminated) {
 		return;
@@ -248,7 +251,6 @@ void IO_completion_port::start() {
 				continue;
 			}
 		}
-		
 		int time_to_wait = get_time_to_wait();
 		while (time_to_wait == 0) {
 			timer *t = (*timers.begin()).t;

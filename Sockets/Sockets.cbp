@@ -2,25 +2,34 @@
 <CodeBlocks_project_file>
 	<FileVersion major="1" minor="6" />
 	<Project>
-		<Option title="echo_server_and_IOCP" />
+		<Option title="Sockets" />
 		<Option pch_mode="2" />
 		<Option compiler="gcc" />
 		<Build>
 			<Target title="Debug">
-				<Option output="bin/Debug/echo_server_and_IOCP" prefix_auto="1" extension_auto="1" />
+				<Option output="bin/Debug/Sockets" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="" />
 				<Option object_output="obj/Debug/" />
-				<Option type="1" />
+				<Option type="2" />
 				<Option compiler="gcc" />
+				<Option createDefFile="1" />
 				<Compiler>
+					<Add option="-Wall" />
 					<Add option="-g" />
 				</Compiler>
+				<Linker>
+					<Add library="C:/Program Files (x86)/mingw-w64/i686-6.3.0-posix-dwarf-rt_v5-rev2/mingw32/i686-w64-mingw32/lib/libws2_32.a" />
+				</Linker>
 			</Target>
 			<Target title="Release">
-				<Option output="bin/Release/echo_server_and_IOCP" prefix_auto="1" extension_auto="1" />
+				<Option output="bin/Release/Sockets" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="" />
 				<Option object_output="obj/Release/" />
-				<Option type="1" />
+				<Option type="2" />
 				<Option compiler="gcc" />
+				<Option createDefFile="1" />
 				<Compiler>
+					<Add option="-Wall" />
 					<Add option="-O2" />
 				</Compiler>
 				<Linker>
@@ -28,31 +37,23 @@
 				</Linker>
 			</Target>
 		</Build>
-		<Compiler>
-			<Add option="-Wall" />
-			<Add option="-fexceptions" />
-		</Compiler>
-		<Unit filename="../echo_server/sockets_wrapper.cpp" />
-		<Unit filename="../echo_server/sockets_wrapper.h" />
 		<Unit filename="IO_completion_port.cpp" />
 		<Unit filename="IO_completion_port.h" />
+		<Unit filename="WSA_holder.h" />
 		<Unit filename="abstract_server.cpp" />
 		<Unit filename="abstract_server.h" />
-		<Unit filename="echo_server.cpp" />
-		<Unit filename="echo_server.h" />
+		<Unit filename="client_socket_2.cpp" />
+		<Unit filename="client_socket_2.h" />
 		<Unit filename="getaddrinfo_executer.cpp" />
 		<Unit filename="getaddrinfo_executer.h" />
 		<Unit filename="logger.cpp" />
 		<Unit filename="logger.h" />
-		<Unit filename="main.cpp" />
-		<Unit filename="servers_client_socket_2.cpp" />
-		<Unit filename="servers_client_socket_2.h" />
 		<Unit filename="socket.cpp" />
 		<Unit filename="socket.h" />
 		<Unit filename="socket_descriptor.cpp" />
 		<Unit filename="socket_descriptor.h" />
 		<Unit filename="socket_exception.h" />
-		<Unit filename="test_server.h" />
+		<Unit filename="sockets.h" />
 		<Unit filename="timers.cpp" />
 		<Unit filename="timers.h" />
 		<Extensions>

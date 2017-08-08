@@ -8,7 +8,7 @@
 #include <memory>
 
 class server_socket;
-class servers_client_socket;
+class client_socket;
 class completion_key;
 class abstract_socket;
 struct abstract_overlapped;
@@ -81,62 +81,109 @@ protected:
 	socket_descriptor sd;
 };
 
-class servers_client_socket : public abstract_socket {
+struct recv_send_overlapped : public abstract_overlapped {
+	friend class client_socket;
+	
+	const static int RECV_KEY = 0;
+	const static int SEND_KEY = 1;
+	
+	const int type_of_operation;
+	WSABUF buff;
+	void *buff_ptr;
+	
+	recv_send_overlapped(const abstract_socket &this_socket, int type, char* buff, size_t size, void *buff_ptr);
+	void* release_buff_ptr();
+	~recv_send_overlapped();
+};
+
+class buffer_to_read {
 public:
-	typedef std::function<void (size_t)> func_rw_t;
+	friend class client_socket;
+	
+	buffer_to_read(size_t size);
+	void resize(size_t new_size);
+	~buffer_to_read();
+private:
+	size_t size;
+	char *buffer;
+};
+
+class buffer_to_write {
+public:
+	friend class client_socket;
+	
+	buffer_to_write();
+	size_t get_saved_size();
+	void reset();
+	void write_to_buffer(const char *buff, size_t size);
+	
+private:
+	size_t start_pos;
+	std::vector<char> buffer;
+};
+
+class client_socket : public abstract_socket {
+public:
+	static const size_t DEFAULT_BUFFER_SIZE = 1024;
+	
+	typedef std::function<void (const char* buff, size_t transmitted_bytes)> func_read_t;
+	typedef std::function<void (size_t saved_bytes, size_t transmitted_bytes)> func_write_t;
 	typedef std::function<void ()> func_disc_t;
 	
 	typedef completion_key::key_ptr key_ptr;
 	typedef completion_key::on_comp_t on_comp_t;
+	
 private:
-	func_rw_t on_read_completion;
-	func_rw_t on_write_completion;
+	func_read_t on_read_completion;
+	func_write_t on_write_completion;
 	func_disc_t on_disconnect;
 	
-	struct servers_client_socket_overlapped : public abstract_overlapped {
-		const static int RECV_KEY = 0;
-		const static int SEND_KEY = 1;
-		
-		int type_of_operation;
-		WSABUF buff;
-		
-		servers_client_socket_overlapped(const abstract_socket &this_socket, int type, char* buff, size_t size);
-	};
+	bool is_connected = false;
+	buffer_to_read *b_to_read = nullptr;
+	buffer_to_write *b_to_write = nullptr;
+	
 	friend class IO_completion_port;
+	friend class server_socket;
 	
-	static void on_completion(DWORD transmited_bytes,
-								const key_ptr key,
-								abstract_overlapped *overlapped,
-								int error);
+	static void on_completion(DWORD transmited_bytes, const key_ptr key,
+								abstract_overlapped *overlapped, int error);
 public:
-	servers_client_socket();
-	servers_client_socket(socket_descriptor &&sd);
-	servers_client_socket(const servers_client_socket &) = delete;
-	servers_client_socket(servers_client_socket &&other);
-	servers_client_socket(int address_family, int type, int protocol);
+	client_socket();
+	client_socket(socket_descriptor &&sd, size_t read_buffer_size = DEFAULT_BUFFER_SIZE);
+	client_socket(const client_socket &) = delete;
+	client_socket(client_socket &&other);
+	client_socket(int address_family, int type, int protocol, size_t read_buffer_size = DEFAULT_BUFFER_SIZE);
 	
-	void set_on_read_completion(func_rw_t on_read_completion);
-	void set_on_write_completion(func_rw_t on_write_completion);
+	void set_on_read_completion(func_read_t on_read_completion);
+	void set_on_write_completion(func_write_t on_write_completion);
 	void set_on_disconnect(func_disc_t on_disconnect);
 	
-	void read_some(char *buff, size_t size);
+	void read_some();
 	void write_some(const char *buff, size_t size);
+	void write_some_saved_bytes();
+	size_t get_num_of_saved_bytes();
+	void connect(short family, const std::string& addr, u_short port);
+	
+	void shutdown_reading();
+	void shutdown_writing();
+	
+	void reset_write_buffer();
 	
 	void execute_on_disconnect();
 	
 	unsigned int get_sd() const;
 	
 	void close();
-	~servers_client_socket();
+	~client_socket();
 	
-	servers_client_socket& operator=(const servers_client_socket &) = delete;
-	servers_client_socket& operator=(servers_client_socket&& socket_d);
+	client_socket& operator=(const client_socket &) = delete;
+	client_socket& operator=(client_socket&& socket_d);
 };
 
 class server_socket : public abstract_socket {
 	friend void bind_socket(const server_socket& sock, short family, u_long addr, u_short port);
 	
-	typedef std::function<void (servers_client_socket)> func_t;
+	typedef std::function<void (client_socket)> func_t;
 	func_t on_accept = nullptr;
 	
 	GUID *GuidAcceptEx = nullptr;
@@ -153,10 +200,8 @@ class server_socket : public abstract_socket {
 	
 	friend class IO_completion_port;
 	
-	static void on_completion(DWORD transmited_bytes,
-								const key_ptr key,
-								abstract_overlapped *overlapped,
-								int error);
+	static void on_completion(DWORD transmited_bytes, const key_ptr key,
+								abstract_overlapped *overlapped, int error);
 public:
 	
 	server_socket();
@@ -167,7 +212,7 @@ public:
 	
 	server_socket& operator=(server_socket &&sock);
 	
-	void bind_and_listen(int address_family, std::string addres_of_main_socket, int port, int backlog = SOMAXCONN);
+	void bind_and_listen(short address_family, std::string socket_address, int port, int backlog = SOMAXCONN);
 	void accept(int address_family, int type, int protocol);
 	
 	SOCKET get_sd() const;

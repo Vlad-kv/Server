@@ -1,5 +1,4 @@
 #include "socket_descriptor.h"
-
 using namespace std;
 
 socket_descriptor::socket_descriptor()

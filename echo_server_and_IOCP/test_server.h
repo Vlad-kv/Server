@@ -1,11 +1,10 @@
 #ifndef TEST_SERVER_H
 #define TEST_SERVER_H
 
-#include "abstract_server.h"
-#include "getaddrinfo_executer.h"
+#include "../Sockets/sockets.h"
 
 class test_server : public abstract_server {
-	vector<pair<long long, std::string>> requests = {
+	std::vector<std::pair<long long, std::string>> requests = {
 		{1, "ru.cppreference.com"},
 		{2, "codeforces.com"},
 		{3, "qwert"},
@@ -25,23 +24,24 @@ public:
 		hints.ai_socktype = SOCK_STREAM;
 		hints.ai_protocol = IPPROTO_TCP;
 		
-		auto call_callback = [this](addrinfo *info) {
-			callback(info);
-		};
 		for (auto &w : requests) {
-			executer.execute(w.first, w.second, "", hints, call_callback);
+			std::string host = w.second;
+			auto call_callback = [this, host](addrinfo *info) {
+				callback(host, info);
+			};
+			executer.execute(w.first, host, "", hints, call_callback);
 		}
 	}
 	
-	void on_accept(servers_client_socket_2 client_s) override {
-		LOG("in on_accept\n");
+	void on_accept(client_socket_2 client_s) override {
 	}
 	
 	void on_interruption() override {
 		LOG("test_server interrupted\n");
 	}
 	
-	void callback(addrinfo *info) {
+	void callback(std::string host, addrinfo *info) {
+		LOG(host << " :\n");
 		if (info == nullptr) {
 			LOG("not found\n");
 		}

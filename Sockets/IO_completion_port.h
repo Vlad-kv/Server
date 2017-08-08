@@ -53,8 +53,8 @@ private:
 	HANDLE iocp_handle;
 	std::multiset<timer_holder> timers;
 	socket_descriptor to_notify;
-	char buff_to_notify[1], buff_to_get_notification[1];
-	std::unique_ptr<servers_client_socket> notification_socket;
+	char buff_to_notify[1];
+	std::unique_ptr<client_socket> notification_socket;
 	static std::atomic_bool is_interrapted;
 	bool is_terminated = false;
 	std::atomic_flag is_already_started;
@@ -81,6 +81,7 @@ public:
 	
 	registration registrate_on_interruption_event(func_t func);
 	
+	void interrupt();
 	void notify();
 	
 	void add_task(func_t func);

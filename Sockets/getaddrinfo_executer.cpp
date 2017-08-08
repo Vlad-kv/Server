@@ -79,19 +79,19 @@ void getaddrinfo_executer::working_thread(getaddrinfo_executer &this_executer, t
 }
 
 getaddrinfo_executer::getaddrinfo_executer(IO_completion_port &port,
-					 int max_number_of_free_threads,
-					 int max_number_of_threads,
-					 int max_number_of_threads_per_group)
+					 size_t max_number_of_free_threads,
+					 size_t max_number_of_threads,
+					 size_t max_number_of_threads_per_group)
 : port(port), max_number_of_free_threads(max_number_of_free_threads),
   max_number_of_threads(max_number_of_threads),
   max_number_of_threads_per_group(max_number_of_threads_per_group) {
 	assert(0 <= max_number_of_free_threads);
-	assert(max(max_number_of_free_threads, 1) <= max_number_of_threads);
+	assert(max(max_number_of_free_threads, (size_t)1) <= max_number_of_threads);
 	assert(1 <= max_number_of_threads_per_group);
 	
 	lock_guard<recursive_mutex> lg(m);
 	
-	for (int w = 0; w < max_number_of_free_threads; w++) {
+	for (size_t w = 0; w < max_number_of_free_threads; w++) {
 		add_new_thread();
 	}
 }

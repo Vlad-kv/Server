@@ -306,6 +306,13 @@ void client_socket::connect(short family, const std::string& addr, u_short port)
 	is_connected = true;
 }
 
+bool client_socket::is_reading_available() {
+	return (b_to_read != nullptr);
+}
+bool client_socket::is_writing_available() {
+	return (b_to_write != nullptr);
+}
+
 void client_socket::shutdown_reading() {
 	if (!is_connected) {
 		throw new socket_exception("client_socket is not connected\n");

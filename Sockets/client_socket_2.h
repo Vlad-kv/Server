@@ -36,6 +36,9 @@ public:
 	void write_some_saved_bytes();
 	size_t get_num_of_saved_bytes();
 	
+	bool is_reading_available();
+	bool is_writing_available();
+	
 	void shutdown_reading();
 	void shutdown_writing();
 	

@@ -47,10 +47,10 @@ timer& timer::operator=(timer &&t) {
 	on_time_expiration = move(t.on_time_expiration);
 	expiration = t.expiration;
 	interval = t.interval;
-	potr = t.port;
+	port = t.port;
 	
 	t.unregistrate();
-	port.registrate_timer(*this);
+	port->registrate_timer(*this);
 }
 timer::~timer() {
 	unregistrate();

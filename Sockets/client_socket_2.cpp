@@ -43,6 +43,13 @@ size_t client_socket_2::get_num_of_saved_bytes() {
 	return c_s.get_num_of_saved_bytes();
 }
 
+bool client_socket_2::is_reading_available() {
+	return c_s.is_reading_available();
+}
+bool client_socket_2::is_writing_available() {
+	return c_s.is_writing_available();
+}
+
 void client_socket_2::shutdown_reading() {
 	c_s.shutdown_reading();
 }

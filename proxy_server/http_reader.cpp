@@ -23,32 +23,40 @@ using namespace std;
 		on_error(mess);\
 		return;\
 	}
-	
-void http_reader::read_client_request(client_callback_t f, on_read_error_t err_f) {
+
+void http_reader::read_client_request() {
 	my_assert((forming_server_req) || (forming_client_req), "previous request not completed");
+	my_assert(!*is_alive, "http_reader already closed\n");
 	
 	forming_client_req = make_unique<client_http_request>();
-	client_callback = move(f);
-	on_error = move(err_f);
 	
 	to_call_on_read_main_part = [this](){parse_client_main_patr();};
 	read_main_patr();
 }
-void http_reader::read_server_request(server_callback_t f, on_read_error_t err_f) {
+void http_reader::read_server_request() {
 	my_assert((forming_server_req) || (forming_client_req), "previous request not completed");
+	my_assert(!*is_alive, "http_reader already closed\n");
 	
+	forming_server_req = make_unique<server_http_request>();
+	// TODO
+}
+
+void http_reader::close() {
+	*is_alive = false;
+}
+http_reader::~http_reader() {
+	close();
 }
 
 void http_reader::clear() {
 	forming_client_req = nullptr;
 	forming_server_req = nullptr;
-	
-	on_error = nullptr;
 }
 
 void http_reader::on_read_completion(const char* buff, size_t transmitted_bytes) {
 	this->buff = buff;
 	this->readed_bytes = transmitted_bytes;
+	ERROR_CHECK(transmitted_bytes == 0, READING_SHUTDOWNED_ERROR);
 	func_to_call_on_r_comp();
 }
 
@@ -103,9 +111,7 @@ void http_reader::parse_client_main_patr() {
 		(forming_client_req->headers.count("Transfer-Encoding") == 0)) {
 				
 		unique_ptr<client_http_request> temp_ptr = move(forming_client_req);
-		client_callback_t temp_c = move(client_callback);
-		clear();
-		temp_c(move(*temp_ptr));
+		client_callback(move(*temp_ptr));
 		return;
 	}
 	assert(0);

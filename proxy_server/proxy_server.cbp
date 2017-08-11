@@ -41,6 +41,7 @@
 		<Unit filename="http_request.cpp" />
 		<Unit filename="http_request.h" />
 		<Unit filename="main.cpp" />
+		<Unit filename="my_assert.h" />
 		<Unit filename="proxy_server.cpp" />
 		<Unit filename="proxy_server.h" />
 		<Extensions>

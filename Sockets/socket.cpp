@@ -290,13 +290,16 @@ size_t client_socket::get_num_of_saved_bytes() {
 }
 
 void client_socket::connect(short family, const std::string& addr, u_short port) {
+	connect(family, inet_addr(&addr[0]), port);
+}
+void client_socket::connect(short family, unsigned long addr, u_short port) {
 	if (is_connected) {
 		throw new socket_exception("client_socket already connected\n");
 	}
 	sockaddr_in addres;
 	
 	addres.sin_family = family;
-	addres.sin_addr.s_addr = inet_addr(&addr[0]);
+	addres.sin_addr.s_addr = addr;
 	addres.sin_port = htons(port);
 	
 	int res = ::connect(sd.get_sd(), (SOCKADDR*) &addres, sizeof(addres));

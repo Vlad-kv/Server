@@ -27,9 +27,9 @@ public:
 		read_some = [sock](){sock->read_some();};
 		std::shared_ptr<bool> temp(is_alive);
 		sock->set_on_read_completion(
-			[this, temp](const char* buff, size_t transmitted_bytes) {
+			[this, temp](const char* buff, size_t size) {
 				if (*temp) {
-					on_read_completion(buff, transmitted_bytes);
+					on_read_completion(buff, size);
 				}
 			}
 		);
@@ -37,6 +37,8 @@ public:
 	
 	void read_client_request();
 	void read_server_request();
+	
+	bool is_previous_request_completed();
 	
 	void close();
 	~http_reader();
@@ -47,8 +49,9 @@ private:
 	int read_header(int &pos);
 	
 	void parse_client_main_patr();
+	void parse_server_main_patr();
 	
-	void on_read_completion(const char* buff, size_t transmitted_bytes);
+	void on_read_completion(const char* buff, size_t size);
 	
 private:
 	std::shared_ptr<bool> is_alive;

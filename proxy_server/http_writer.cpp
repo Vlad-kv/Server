@@ -1,12 +1,11 @@
 #include "http_writer.h"
 #include "my_assert.h"
-
-void http_writer::clean() {
-	callback = nullptr;
-	on_writing_shutdown = nullptr;
+using namespace std;
+bool http_writer::is_previous_request_completed() {
+	return !is_writing_not_completed;
 }
+
 void http_writer::close() {
-	clean();
 	*is_alive = false;
 }
 http_writer::~http_writer() {
@@ -15,6 +14,7 @@ http_writer::~http_writer() {
 
 void http_writer::on_write_completion(size_t saved_bytes, size_t transmitted_bytes) {
 	if (transmitted_bytes == 0) {
+		is_writing_not_completed = false;
 		on_writing_shutdown();
 		close();
 		return;
@@ -23,7 +23,6 @@ void http_writer::on_write_completion(size_t saved_bytes, size_t transmitted_byt
 		write_some_saved_bytes();
 		return;
 	}
-	func_t temp = move(callback);
-	clean();
+	is_writing_not_completed = false;
 	callback();
 }

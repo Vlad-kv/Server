@@ -25,6 +25,7 @@ private:
 public:
 	abstract_server(std::string addres_of_main_socket, int address_family, int type, int protocol, int port, IO_completion_port &comp_port);
 	
+	void registrate_socket(abstract_socket &sock);
 	void registrate_timer(timer& t);
 	void add_task(func_t func);
 protected:

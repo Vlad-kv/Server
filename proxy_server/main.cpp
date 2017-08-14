@@ -12,7 +12,7 @@ int main() {
 	
 	port.start();
 	
-	Sleep(1000);
+	Sleep(100000);
 	
 	return 0;
 }

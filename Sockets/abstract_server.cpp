@@ -31,6 +31,9 @@ abstract_server::abstract_server(std::string addres_of_main_socket, int address_
 	accept();
 }
 
+void abstract_server::registrate_socket(abstract_socket &sock) {
+	comp_port.registrate_socket(sock);
+}
 void abstract_server::registrate_timer(timer& t) {
 	comp_port.registrate_timer(t);
 }

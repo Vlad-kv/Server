@@ -54,7 +54,7 @@ client_http_request::client_http_request(std::string method, std::string uri,
 }
 std::vector<char> to_vector(const client_http_request& req) {
 	vector<char> res;
-	string temp_str = req.method + " " + req.uri + " http/" + to_string(req.version.first) +
+	string temp_str = req.method + " " + req.uri + " HTTP/" + to_string(req.version.first) +
 						"." + to_string(req.version.second) + "\r\n";
 	for (char c : temp_str) {
 		res.push_back(c);
@@ -83,7 +83,7 @@ server_http_request::server_http_request(std::pair<int, int> version, int status
 }
 std::vector<char> to_vector(const server_http_request& req) {
 	vector<char> res;
-	string temp_str = "http/" + to_string(req.version.first) + "." + to_string(req.version.second) +
+	string temp_str = "HTTP/" + to_string(req.version.first) + "." + to_string(req.version.second) +
 						" " + to_string(req.status_code) + " " + req.reason_phrase + "\r\n";
 	for (char c : temp_str) {
 		res.push_back(c);

@@ -33,18 +33,20 @@ public:
 	}
 	
 	template<typename http_request_t>
-	void write_request(http_request_t req) {
-		my_assert((callback != nullptr), "previous request not writed");
+	void write_request(const http_request_t& req) {
+		my_assert(is_writing_not_completed, "previous request not writed");
 		my_assert(!*is_alive, "http_writer already closed\n");
 		
 		std::vector<char> temp_v = to_vector(req);
+		is_writing_not_completed = true;
 		write_some(&temp_v[0], temp_v.size());
 	}
+	
+	bool is_previous_request_completed();
 	
 	void close();
 	~http_writer();
 private:
-	void clean();
 	void on_write_completion(size_t saved_bytes, size_t transmitted_bytes);
 	
 private:
@@ -52,6 +54,7 @@ private:
 	
 	func_t callback;
 	func_t on_writing_shutdown;
+	bool is_writing_not_completed = false;
 	
 	std::function<void (const char* buff, size_t size)> write_some;
 	func_t write_some_saved_bytes;

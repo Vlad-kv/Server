@@ -162,7 +162,9 @@ public:
 	void write_some(const char *buff, size_t size);
 	void write_some_saved_bytes();
 	size_t get_num_of_saved_bytes();
+	
 	void connect(short family, const std::string& addr, u_short port);
+	void connect(short family, unsigned long addr, u_short port);
 	
 	bool is_reading_available();
 	bool is_writing_available();

@@ -40,7 +40,10 @@
 		<Unit filename="http_reader.h" />
 		<Unit filename="http_request.cpp" />
 		<Unit filename="http_request.h" />
+		<Unit filename="http_writer.cpp" />
+		<Unit filename="http_writer.h" />
 		<Unit filename="main.cpp" />
+		<Unit filename="my_assert.cpp" />
 		<Unit filename="my_assert.h" />
 		<Unit filename="proxy_server.cpp" />
 		<Unit filename="proxy_server.h" />

@@ -4,9 +4,7 @@
 #include <set>
 
 #include "../Sockets/sockets.h"
-#include "http_reader.h"
-#include "http_writer.h"
-
+#include "../http_utils/http_utils.h"
 
 struct queue_element {
 	queue_element(client_http_request &&request);
@@ -38,8 +36,6 @@ public:
 	proxy_server(std::string addres_of_main_socket, int port, IO_completion_port &comp_port);
 	
 private:
-	static int extract_port(const std::string& uri);
-	
 	void notify_client_about_error(client_data &data, int status_code, std::string reason_phrase);
 	
 	void on_accept(client_socket_2 client_s) override;

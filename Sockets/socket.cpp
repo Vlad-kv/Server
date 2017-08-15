@@ -266,7 +266,9 @@ void client_socket::write_some_saved_bytes() {
 	if (WSASend(sd.get_sd(), &overlapped->buff, 1, &received_bytes/*unused*/, 0, 
 				&overlapped->overlapped, NULL) == SOCKET_ERROR) {
 					int error = WSAGetLastError();
-					if (error == 10054) { // подключение разорвано
+					if ((error == WSAECONNABORTED) ||
+						(error == WSAECONNRESET)) { // подключение разорвано
+						
 						LOG("In WSASend connection broken.\n");
 						
 						b_to_write = (buffer_to_write*)overlapped->release_buff_ptr();

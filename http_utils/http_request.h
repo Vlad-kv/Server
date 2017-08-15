@@ -23,6 +23,11 @@ struct client_http_request : http_request {
 						std::pair<int, int> version,
 						std::multimap<std::string, std::string> headers,
 						std::vector<char> message_body);
+	int extract_port_number();
+	std::string extract_host();
+private:
+	static int extract_port(const std::string& uri);
+public:
 	
 	std::string method, uri;
 	std::pair<int, int> version;

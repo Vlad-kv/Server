@@ -18,7 +18,7 @@
 					<Add option="-g" />
 				</Compiler>
 				<Linker>
-					<Add library="C:/Program Files (x86)/mingw-w64/i686-6.3.0-posix-dwarf-rt_v5-rev2/mingw32/i686-w64-mingw32/lib/libws2_32.a" />
+					<Add library="C:/Program Files (x86)/mingw-w64/i686-7.1.0-posix-dwarf-rt_v5-rev2/mingw32/i686-w64-mingw32/lib/libws2_32.a" />
 				</Linker>
 			</Target>
 			<Target title="Release">

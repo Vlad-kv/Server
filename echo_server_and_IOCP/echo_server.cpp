@@ -14,6 +14,7 @@ echo_server::client_data& echo_server::client_data::operator=(client_data &&c_d)
 	t = move(c_d.t);
 	data_size = c_d.data_size;
 	sended_size = c_d.sended_size;
+	return *this;
 }
 ///-------
 

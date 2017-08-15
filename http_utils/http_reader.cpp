@@ -64,15 +64,20 @@ void http_reader::clear() {
 }
 
 void http_reader::on_read_completion(const char* buff, size_t size) {
-	cout << "in http_reader::on_read_completion:\n";
-	for (int w = 0; w < size; w++) {
-		cout << buff[w];
-	}
-	cout << "-------------------------\n";
+	LOG("in http_reader::on_read_completion: size == " << size << "\n");
+//	for (int w = 0; w < size; w++) {
+//		cout << buff[w];
+//	}
+//	cout << "###############################\n";
 	this->buff = buff;
 	this->readed_bytes = size;
 	ERROR_CHECK(size == 0, READING_SHUTDOWNED_ERROR);
 	func_to_call_on_r_comp();
+}
+
+void http_reader::on_read_server_messadge_body_completion() {
+	unique_ptr<server_http_request> temp_ptr = move(forming_server_req);
+	server_callback(move(*temp_ptr));
 }
 
 void http_reader::read_main_patr() {
@@ -86,7 +91,6 @@ void http_reader::read_main_patr() {
 		GET_NEXT_CHAR();
 		readed_buff.push_back(next);
 	}
-	LOG("after while\n");
 	to_call_on_read_main_part();
 }
 
@@ -140,7 +144,6 @@ void http_reader::parse_client_main_patr() {
 
 void http_reader::parse_server_main_patr() {
 	LOG("in parse_server_main_patr\n");
-	LOG(readed_buff << "\n----------------\n");
 	
 	int pos = 0, size = readed_buff.size();
 	string version;
@@ -157,6 +160,7 @@ void http_reader::parse_server_main_patr() {
 	forming_server_req->version = {d_1, d_2};
 	
 	string error;
+	pos++;
 	while ((pos < size) && (readed_buff[pos] != ' ')) {
 		error.push_back(readed_buff[pos++]);
 	}
@@ -169,7 +173,6 @@ void http_reader::parse_server_main_patr() {
 		ERROR_CHECK(true, SYNTAX_ERROR);
 	}
 	ERROR_CHECK(status_code >= 1000, SYNTAX_ERROR);
-	
 	forming_server_req->status_code = status_code;
 	
 	string reason_phrase;
@@ -191,14 +194,39 @@ void http_reader::parse_server_main_patr() {
 	
 	multimap<string, string> &headers = forming_server_req->headers;
 	
-	if (((headers.count("Content-Length") == 0) || ((*headers.find("Content-Length")).second == "0")) &&
-		(headers.count("Transfer-Encoding") == 0)) {
-				
+	if (headers.count("Content-Length") > 0) {
+		string str_cont_size = (*headers.find("Content-Length")).second;
+		int cont_size;
+		try {
+			cont_size = stoi(str_cont_size);
+		} catch (...) {
+			ERROR_CHECK(true, SYNTAX_ERROR);
+		}
+		remaining_content_length = cont_size;
+		to_call_on_read_message_body_completion = [this]() {on_read_server_messadge_body_completion();};
+		where_to_write_message_body = &*forming_server_req;
+		
+		read_message_body_using_content_length();
+		return;
+	}
+	
+	if (headers.count("Transfer-Encoding") == 0) {
 		unique_ptr<server_http_request> temp_ptr = move(forming_server_req);
 		server_callback(move(*temp_ptr));
 		return;
 	}
 	assert(0);
+}
+
+void http_reader::read_message_body_using_content_length() {
+	SET_ON_R_COMP(read_message_body_using_content_length);
+	
+	while (remaining_content_length > 0) {
+		GET_NEXT_CHAR();
+		where_to_write_message_body->message_body.push_back(next);
+		remaining_content_length--;
+	}
+	to_call_on_read_message_body_completion();
 }
 
 int http_reader::read_header(int &pos) {

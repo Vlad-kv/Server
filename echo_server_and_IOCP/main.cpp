@@ -15,9 +15,9 @@ int main(int argc, char* argv[]) {
 	WSA_holder wsa_holder(MAKEWORD(2, 2));
 	{
 		IO_completion_port port;
-		echo_server server(MAIN_SOCKET_ADDRES, AF_INET, SOCK_STREAM, 0, 8001, port);
+//		echo_server server(MAIN_SOCKET_ADDRES, AF_INET, SOCK_STREAM, 0, 8001, port);
 		
-//		test_server test_s(MAIN_SOCKET_ADDRES, AF_INET, SOCK_STREAM, 0, 8002, port);
+		test_server test_s(MAIN_SOCKET_ADDRES, AF_INET, SOCK_STREAM, 0, 8002, port);
 		port.start();
 	}
 	Sleep(2000);

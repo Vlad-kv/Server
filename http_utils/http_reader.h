@@ -51,7 +51,11 @@ private:
 	void parse_client_main_patr();
 	void parse_server_main_patr();
 	
+	void read_message_body_using_content_length();
+	
 	void on_read_completion(const char* buff, size_t size);
+	
+	void on_read_server_messadge_body_completion();
 	
 private:
 	std::shared_ptr<bool> is_alive;
@@ -66,9 +70,12 @@ private:
 	
 	func_t func_to_call_on_r_comp;
 	func_t to_call_on_read_main_part;
+	func_t to_call_on_read_message_body_completion;
 	
 	const char *buff = nullptr;
 	size_t readed_bytes = 0;
+	size_t remaining_content_length;
+	http_request *where_to_write_message_body;
 	
 	char next;
 	std::string readed_buff;

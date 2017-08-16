@@ -3,7 +3,7 @@
 #include "proxy_server.h"
 using namespace std;
 
-queue_element::queue_element(client_http_request &&request)
+queue_element::queue_element(http_request &&request)
 : request(move(request)) {
 }
 
@@ -12,19 +12,19 @@ proxy_server::client_data::client_data(proxy_server *this_server, client_socket_
 	client.set_on_disconnect([this_server, this]() {this_server->on_client_disconnect(*this);});
 	
 	client_reader = make_unique<http_reader>(&this->client,
-		[this_server, this](client_http_request req) {this_server->on_client_request_reading_completion(*this, move(req));},
-		[this_server, this](server_http_request req) {throw new runtime_error("server_http_request from client_reader");},
+		[this_server, this](http_request req) {this_server->on_client_request_reading_completion(*this, move(req));},
+		[this_server, this](http_response req) {throw new runtime_error("server_http_request from client_reader");},
 		[this_server, this](int error) {this_server->on_read_error_from_client(*this, error);}
 	);
 	client_writer = make_unique<http_writer>(&this->client,
-		[this_server, this]() {this_server->on_server_request_writing_completion(*this);},
+		[this_server, this]() {this_server->on_server_response_writing_completion(*this);},
 		[this_server, this]() {this_server->on_writing_shutdowning_from_client(*this);}
 	);
 	server.set_on_disconnect([this_server, this]() {this_server->on_server_disconnect(*this);});
 	
 	server_reader = make_unique<http_reader>(&this->server,
-		[this_server, this](client_http_request req) {throw new runtime_error("client_http_request from server_reader");},
-		[this_server, this](server_http_request req) {this_server->on_server_request_reading_completion(*this, move(req));},
+		[this_server, this](http_request req) {throw new runtime_error("client_http_request from server_reader");},
+		[this_server, this](http_response req) {this_server->on_server_response_reading_completion(*this, move(req));},
 		[this_server, this](int error) {this_server->on_read_error_from_server(*this, error);}
 	);
 	server_writer = make_unique<http_writer>(&this->server,
@@ -52,15 +52,15 @@ void proxy_server::notify_client_about_error(client_data &data, int status_code,
 	
 	if (!data.client_writer->is_previous_request_completed()) {
 		data.to_write_server_req_and_delete = true;
-		while (!data.server_requests.empty()) {
-			data.server_requests.pop();
+		while (!data.server_responses.empty()) {
+			data.server_responses.pop();
 		}
-		data.server_requests.push(server_http_request({1, 1}, status_code, reason_phrase, {}, {}));
+		data.server_responses.push(http_response({1, 1}, status_code, reason_phrase, {}, {}));
 		return;
 	}
 	
 	data.client_writer->write_request(
-		server_http_request({1, 1}, status_code, reason_phrase, {}, {})
+		http_response({1, 1}, status_code, reason_phrase, {}, {})
 	);
 	data.to_delete = true;
 }
@@ -82,7 +82,7 @@ void proxy_server::on_interruption() {
 	clients.clear();
 }
 
-void proxy_server::on_client_request_reading_completion(client_data &data, client_http_request req) {
+void proxy_server::on_client_request_reading_completion(client_data &data, http_request req) {
 	LOG("request:\n");
 	LOG(to_string(req));
 	
@@ -120,21 +120,21 @@ void proxy_server::on_read_error_from_client(client_data &data, int error) {
 	notify_client_about_error(data, 400, "Bad Request");
 }
 
-void proxy_server::on_server_request_writing_completion(client_data &data) {
-	LOG("in on_server_request_writing_completion\n");
+void proxy_server::on_server_response_writing_completion(client_data &data) {
+	LOG("in on_server_response_writing_completion\n");
 	if (data.to_delete) {
 		delete_client_data(data);
 		return;
 	}
 	if (data.to_write_server_req_and_delete) {
 		data.to_delete = true;
-		data.client_writer->write_request(data.server_requests.front());
-		data.server_requests.pop();
+		data.client_writer->write_request(data.server_responses.front());
+		data.server_responses.pop();
 		return;
 	}
-	if (!data.server_requests.empty()) {
-		data.client_writer->write_request(data.server_requests.front());
-		data.server_requests.pop();
+	if (!data.server_responses.empty()) {
+		data.client_writer->write_request(data.server_responses.front());
+		data.server_responses.pop();
 	}
 }
 void proxy_server::on_writing_shutdowning_from_client(client_data &data) {
@@ -142,13 +142,13 @@ void proxy_server::on_writing_shutdowning_from_client(client_data &data) {
 	delete_client_data(data);
 }
 
-void proxy_server::on_server_request_reading_completion(client_data &data, server_http_request req) {
-	LOG("in on_server_request_reading_completion\n");
+void proxy_server::on_server_response_reading_completion(client_data &data, http_response req) {
+	LOG("in on_server_response_reading_completion\n");
 	
-	data.server_requests.push(move(req));
+	data.server_responses.push(move(req));
 	if (data.client_writer->is_previous_request_completed()) {
-		data.client_writer->write_request(data.server_requests.front());
-		data.server_requests.pop();
+		data.client_writer->write_request(data.server_responses.front());
+		data.server_responses.pop();
 	}
 }
 void proxy_server::on_read_error_from_server(client_data &data, int error) {
@@ -168,7 +168,7 @@ void proxy_server::on_read_error_from_server(client_data &data, int error) {
 void proxy_server::on_client_request_writing_completion(client_data &data) {
 	LOG("in on_client_request_writing_completion\n");
 	if (data.server_reader->is_previous_request_completed()) {
-		data.server_reader->read_server_request();
+		data.server_reader->read_server_response();
 	}
 	if ((data.server_writer->is_previous_request_completed()) &&
 		(!data.client_requests.empty()) &&
@@ -184,16 +184,16 @@ void proxy_server::on_writing_shutdowning_from_server(client_data &data) {
 	notify_client_about_error(data, 503, "Service Unavailable");
 }
 
-void proxy_server::on_client_disconnect(client_data &client_d) {
+void proxy_server::on_client_disconnect(client_data &data) {
 	LOG("in on_client_disconnect\n");
-	delete_client_data(client_d);
+	delete_client_data(data);
 }
-void proxy_server::on_server_disconnect(client_data &client_d) {
+void proxy_server::on_server_disconnect(client_data &data) {
 	LOG("in on_server_disconnect\n");
 	if (is_interrupted) {
-		delete_client_data(client_d);
+		delete_client_data(data);
 	} else {
-		notify_client_about_error(client_d, 503, "Service Unavailable");
+		notify_client_about_error(data, 503, "Service Unavailable");
 	}
 }
 
@@ -229,9 +229,9 @@ void proxy_server::getaddrinfo_callback(client_data &data, addrinfo *info, std::
 	}
 }
 
-void proxy_server::delete_client_data(client_data &client_d) {
+void proxy_server::delete_client_data(client_data &data) {
 	if (!is_interrupted) {
-		long long id = client_d.client.get_id();
+		long long id = data.client.get_id();
 		if (keys_in_process_of_deletion.count(id) != 0) {
 			return;
 		}

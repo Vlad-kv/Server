@@ -13,8 +13,8 @@ int main() {
 	port.registrate_socket(client);
 	
 	http_reader reader(&client,
-						[&](client_http_request req) {},
-						[&](server_http_request req) {
+						[&](http_request req) {},
+						[&](http_response req) {
 							cout << to_string(req) << "\n";
 							client.execute_on_disconnect();
 						},
@@ -22,7 +22,7 @@ int main() {
 	);
 	http_writer writer(&client,
 						[&]() {
-							reader.read_server_request();
+							reader.read_server_response();
 						},
 						[&]() {
 							cout << "shut downing from writer\n";
@@ -37,7 +37,7 @@ int main() {
 		}
 	);
 	
-	writer.write_request(client_http_request(
+	writer.write_request(http_request(
 		"TRACE", "/", {1, 1}, {
 			{"User-Agent", "Mozilla/4.0 (compatible; MSIE5.01; Windows NT)"},
 			{"Host", "www.tutorialspoint.com"}

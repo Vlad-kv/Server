@@ -28,27 +28,27 @@ void http_reader::read_client_request() {
 	my_assert(!is_previous_request_completed(), "previous request not completed");
 	my_assert(!*is_alive, "http_reader already closed\n");
 	
-	forming_client_req = make_unique<client_http_request>();
+	forming_client_req = make_unique<http_request>();
 	
-	to_call_on_read_main_part = [this]() {parse_client_main_patr();};
+	to_call_on_read_main_part = [this]() {parse_request_main_patr();};
 	readed_buff.clear();
 	
-	read_main_patr();
+	read_main_part();
 }
-void http_reader::read_server_request() {
+void http_reader::read_server_response() {
 	my_assert(!is_previous_request_completed(), "previous request not completed");
 	my_assert(!*is_alive, "http_reader already closed\n");
 	
-	forming_server_req = make_unique<server_http_request>();
+	forming_server_resp = make_unique<http_response>();
 	
-	to_call_on_read_main_part = [this]() {parse_server_main_patr();};
+	to_call_on_read_main_part = [this]() {parse_response_main_patr();};
 	readed_buff.clear();
 	
-	read_main_patr();
+	read_main_part();
 }
 
 bool http_reader::is_previous_request_completed() {
-	return ((forming_server_req == nullptr) && (forming_client_req == nullptr));
+	return ((forming_server_resp == nullptr) && (forming_client_req == nullptr));
 }
 
 void http_reader::close() {
@@ -60,7 +60,7 @@ http_reader::~http_reader() {
 
 void http_reader::clear() {
 	forming_client_req = nullptr;
-	forming_server_req = nullptr;
+	forming_server_resp = nullptr;
 }
 
 void http_reader::on_read_completion(const char* buff, size_t size) {
@@ -76,13 +76,13 @@ void http_reader::on_read_completion(const char* buff, size_t size) {
 }
 
 void http_reader::on_read_server_messadge_body_completion() {
-	unique_ptr<server_http_request> temp_ptr = move(forming_server_req);
+	unique_ptr<http_response> temp_ptr = move(forming_server_resp);
 	server_callback(move(*temp_ptr));
 }
 
-void http_reader::read_main_patr() {
-	LOG("in http_reader::read_main_patr\n");
-	SET_ON_R_COMP(read_main_patr);
+void http_reader::read_main_part() {
+	LOG("in http_reader::read_main_part\n");
+	SET_ON_R_COMP(read_main_part);
 	while (true) {
 		int size = readed_buff.size();
 		if ((size >= 4) && (readed_buff.substr(size - 4, 4) == "\r\n\r\n")) {
@@ -94,8 +94,8 @@ void http_reader::read_main_patr() {
 	to_call_on_read_main_part();
 }
 
-void http_reader::parse_client_main_patr() {
-	cout << "in http_reader::parse_client_main_patr\n";
+void http_reader::parse_request_main_patr() {
+	cout << "in http_reader::parse_request_main_patr\n";
 	int pos = 0, size = readed_buff.size();
 	while ((pos < size) && (readed_buff[pos] != ' ')) {
 		forming_client_req->method.push_back(readed_buff[pos++]);
@@ -135,15 +135,15 @@ void http_reader::parse_client_main_patr() {
 	if (((headers.count("Content-Length") == 0) || ((*headers.find("Content-Length")).second == "0")) &&
 		(headers.count("Transfer-Encoding") == 0)) {
 				
-		unique_ptr<client_http_request> temp_ptr = move(forming_client_req);
+		unique_ptr<http_request> temp_ptr = move(forming_client_req);
 		client_callback(move(*temp_ptr));
 		return;
 	}
 	assert(0);
 }
 
-void http_reader::parse_server_main_patr() {
-	LOG("in parse_server_main_patr\n");
+void http_reader::parse_response_main_patr() {
+	LOG("in parse_response_main_patr\n");
 	
 	int pos = 0, size = readed_buff.size();
 	string version;
@@ -157,7 +157,7 @@ void http_reader::parse_server_main_patr() {
 	version[5] = version[7] = '*';
 	ERROR_CHECK(version != "HTTP/*.*", SYNTAX_ERROR);
 	
-	forming_server_req->version = {d_1, d_2};
+	forming_server_resp->version = {d_1, d_2};
 	
 	string error;
 	pos++;
@@ -173,7 +173,7 @@ void http_reader::parse_server_main_patr() {
 		ERROR_CHECK(true, SYNTAX_ERROR);
 	}
 	ERROR_CHECK(status_code >= 1000, SYNTAX_ERROR);
-	forming_server_req->status_code = status_code;
+	forming_server_resp->status_code = status_code;
 	
 	string reason_phrase;
 	while ((pos < size) && ((readed_buff[pos - 1] != '\r') ||
@@ -184,7 +184,7 @@ void http_reader::parse_server_main_patr() {
 	reason_phrase.pop_back();
 	pos++;
 	
-	forming_server_req->reason_phrase = move(reason_phrase);
+	forming_server_resp->reason_phrase = move(reason_phrase);
 	
 	int res = 0;
 	while (res == 0) {
@@ -192,7 +192,7 @@ void http_reader::parse_server_main_patr() {
 	}
 	ERROR_CHECK(res == 2, SYNTAX_ERROR);
 	
-	multimap<string, string> &headers = forming_server_req->headers;
+	multimap<string, string> &headers = forming_server_resp->headers;
 	
 	if (headers.count("Content-Length") > 0) {
 		string str_cont_size = (*headers.find("Content-Length")).second;
@@ -204,14 +204,14 @@ void http_reader::parse_server_main_patr() {
 		}
 		remaining_content_length = cont_size;
 		to_call_on_read_message_body_completion = [this]() {on_read_server_messadge_body_completion();};
-		where_to_write_message_body = &*forming_server_req;
+		where_to_write_message_body = &*forming_server_resp;
 		
 		read_message_body_using_content_length();
 		return;
 	}
 	
 	if (headers.count("Transfer-Encoding") == 0) {
-		unique_ptr<server_http_request> temp_ptr = move(forming_server_req);
+		unique_ptr<http_response> temp_ptr = move(forming_server_resp);
 		server_callback(move(*temp_ptr));
 		return;
 	}
@@ -258,7 +258,7 @@ int http_reader::read_header(int &pos) {
 	if (forming_client_req != nullptr) {
 		forming_client_req->headers.emplace(name, value);
 	} else {
-		forming_server_req->headers.emplace(name, value);
+		forming_server_resp->headers.emplace(name, value);
 	}
 	return 0;
 }

@@ -4,7 +4,7 @@
 #include <functional>
 #include <memory>
 
-#include "http_request.h"
+#include "http_message.h"
 #include "my_assert.h"
 
 class http_writer {

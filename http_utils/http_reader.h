@@ -5,15 +5,15 @@
 #include <memory>
 
 #include "../Sockets/sockets.h"
-#include "http_request.h"
+#include "http_message.h"
 
 class http_reader {
 public:
 	static const int SYNTAX_ERROR = 1;
 	static const int READING_SHUTDOWNED_ERROR = 2;
 	
-	typedef std::function<void (client_http_request)> client_callback_t;
-	typedef std::function<void (server_http_request)> server_callback_t;
+	typedef std::function<void (http_request)> client_callback_t;
+	typedef std::function<void (http_response)> server_callback_t;
 	typedef std::function<void (int)> on_read_error_t;
 	typedef std::function<void ()> func_t;
 	
@@ -36,7 +36,7 @@ public:
 	}
 	
 	void read_client_request();
-	void read_server_request();
+	void read_server_response();
 	
 	bool is_previous_request_completed();
 	
@@ -45,11 +45,11 @@ public:
 private:
 	void clear();
 	
-	void read_main_patr();
+	void read_main_part();
 	int read_header(int &pos);
 	
-	void parse_client_main_patr();
-	void parse_server_main_patr();
+	void parse_request_main_patr();
+	void parse_response_main_patr();
 	
 	void read_message_body_using_content_length();
 	
@@ -60,8 +60,8 @@ private:
 private:
 	std::shared_ptr<bool> is_alive;
 	
-	std::unique_ptr<client_http_request> forming_client_req = nullptr;
-	std::unique_ptr<server_http_request> forming_server_req = nullptr;
+	std::unique_ptr<http_request> forming_client_req = nullptr;
+	std::unique_ptr<http_response> forming_server_resp = nullptr;
 	
 	client_callback_t client_callback;
 	server_callback_t server_callback;
@@ -75,7 +75,7 @@ private:
 	const char *buff = nullptr;
 	size_t readed_bytes = 0;
 	size_t remaining_content_length;
-	http_request *where_to_write_message_body;
+	http_message *where_to_write_message_body;
 	
 	char next;
 	std::string readed_buff;

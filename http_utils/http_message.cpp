@@ -1,4 +1,4 @@
-#include "http_request.h"
+#include "http_message.h"
 using namespace std;
 
 namespace {
@@ -11,16 +11,16 @@ namespace {
 	}
 }
 
-http_request::http_request() {
+http_message::http_message() {
 }
-http_request::http_request(http_request &&req)
+http_message::http_message(http_message &&req)
 : headers(move(req.headers)), message_body(move(req.message_body)) {
 }
-http_request::http_request(std::multimap<std::string, std::string> headers,
+http_message::http_message(std::multimap<std::string, std::string> headers,
 					std::vector<char> message_body)
 : headers(move(headers)), message_body(move(message_body)) {
 }
-std::vector<char> to_vector(const http_request& req) {
+std::vector<char> to_vector(const http_message& req) {
 	vector<char> res;
 	for (auto &w : req.headers) {
 		string temp_str = w.first + ": " + w.second + "\r\n";
@@ -35,24 +35,24 @@ std::vector<char> to_vector(const http_request& req) {
 	}
 	return res;
 }
-std::string to_string(const http_request& req) {
+std::string to_string(const http_message& req) {
 	return to_string(to_vector(req));
 }
 
-client_http_request::client_http_request() {
+http_request::http_request() {
 }
-client_http_request::client_http_request(client_http_request &&req)
-: http_request(static_cast<http_request&&>(req)), method(move(req.method)),
+http_request::http_request(http_request &&req)
+: http_message(static_cast<http_message&&>(req)), method(move(req.method)),
   uri(move(req.uri)), version(move(req.version)) {
 }
-client_http_request::client_http_request(std::string method, std::string uri,
+http_request::http_request(std::string method, std::string uri,
 						std::pair<int, int> version,
 						std::multimap<std::string, std::string> headers,
 						std::vector<char> message_body)
-: http_request(move(headers), move(message_body)), method(move(method)),
+: http_message(move(headers), move(message_body)), method(move(method)),
   uri(move(uri)), version(move(version)) {
 }
-int client_http_request::extract_port(const std::string& uri) {
+int http_request::extract_port(const std::string& uri) {
 	size_t pos = 0;
 	if ((uri.size() >= 7) && (uri.substr(0, 7) == "http://")) {
 		pos = 7;
@@ -74,7 +74,7 @@ int client_http_request::extract_port(const std::string& uri) {
 		return 0;
 	}
 }
-int client_http_request::extract_port_number() {
+int http_request::extract_port_number() {
 	int int_port = extract_port(uri);
 	if (headers.count("Host") == 0) {
 		if (int_port == 0) {
@@ -103,7 +103,7 @@ int client_http_request::extract_port_number() {
 	}
 	return int_port;
 }
-std::string client_http_request::extract_host() {
+std::string http_request::extract_host() {
 	string host;
 	if (headers.count("Host") > 0) {
 		string &str = (*headers.find("Host")).second;
@@ -123,47 +123,47 @@ std::string client_http_request::extract_host() {
 	return host;
 }
 
-std::vector<char> to_vector(const client_http_request& req) {
+std::vector<char> to_vector(const http_request& req) {
 	vector<char> res;
 	string temp_str = req.method + " " + req.uri + " HTTP/" + to_string(req.version.first) +
 						"." + to_string(req.version.second) + "\r\n";
 	for (char c : temp_str) {
 		res.push_back(c);
 	}
-	for (char c : to_vector(static_cast<const http_request&>(req))) {
+	for (char c : to_vector(static_cast<const http_message&>(req))) {
 		res.push_back(c);
 	}
 	return res;
 }
-std::string to_string(const client_http_request& req) {
+std::string to_string(const http_request& req) {
 	return to_string(to_vector(req));
 }
 
-server_http_request::server_http_request() {
+http_response::http_response() {
 }
-server_http_request::server_http_request(server_http_request &&req)
-: http_request(static_cast<http_request&&>(req)), version(move(req.version)), status_code(req.status_code),
+http_response::http_response(http_response &&req)
+: http_message(static_cast<http_message&&>(req)), version(move(req.version)), status_code(req.status_code),
   reason_phrase(move(req.reason_phrase)) {
 }
-server_http_request::server_http_request(std::pair<int, int> version, int status_code,
+http_response::http_response(std::pair<int, int> version, int status_code,
 						std::string reason_phrase,
 						std::multimap<std::string, std::string> headers,
 						std::vector<char> message_body)
-: http_request(move(headers), move(message_body)), version(move(version)),
+: http_message(move(headers), move(message_body)), version(move(version)),
   status_code(status_code), reason_phrase(move(reason_phrase)) {
 }
-std::vector<char> to_vector(const server_http_request& req) {
+std::vector<char> to_vector(const http_response& req) {
 	vector<char> res;
 	string temp_str = "HTTP/" + to_string(req.version.first) + "." + to_string(req.version.second) +
 						" " + to_string(req.status_code) + " " + req.reason_phrase + "\r\n";
 	for (char c : temp_str) {
 		res.push_back(c);
 	}
-	for (char c : to_vector(static_cast<const http_request&>(req))) {
+	for (char c : to_vector(static_cast<const http_message&>(req))) {
 		res.push_back(c);
 	}
 	return res;
 }
-std::string to_string(const server_http_request& req) {
+std::string to_string(const http_response& req) {
 	return to_string(to_vector(req));
 }

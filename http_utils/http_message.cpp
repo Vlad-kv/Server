@@ -20,6 +20,13 @@ http_message::http_message(std::multimap<std::string, std::string> headers,
 					std::vector<char> message_body)
 : headers(move(headers)), message_body(move(message_body)) {
 }
+http_message::http_message(std::multimap<std::string, std::string> headers,
+					std::string message_body)
+: headers(move(headers)) {
+	for (char w : message_body) {
+		this->message_body.push_back(w);
+	}
+}
 std::vector<char> to_vector(const http_message& req) {
 	vector<char> res;
 	for (auto &w : req.headers) {
@@ -49,6 +56,13 @@ http_request::http_request(std::string method, std::string uri,
 						std::pair<int, int> version,
 						std::multimap<std::string, std::string> headers,
 						std::vector<char> message_body)
+: http_message(move(headers), move(message_body)), method(move(method)),
+  uri(move(uri)), version(move(version)) {
+}
+http_request::http_request(std::string method, std::string uri,
+						std::pair<int, int> version,
+						std::multimap<std::string, std::string> headers,
+						std::string message_body)
 : http_message(move(headers), move(message_body)), method(move(method)),
   uri(move(uri)), version(move(version)) {
 }

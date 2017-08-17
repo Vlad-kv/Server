@@ -38,6 +38,8 @@ public:
 	void read_client_request();
 	void read_server_response();
 	
+	void add_method_that_was_sended_to_server(std::string method);
+	
 	bool is_previous_request_completed();
 	
 	void close();
@@ -46,17 +48,29 @@ private:
 	void clear();
 	
 	void read_main_part();
-	int read_header(int &pos);
+	std::pair<std::string, std::string> read_header(int &pos);
+	void read_line(func_t to_call);
+	void read_line_cycle();
 	
 	void parse_request_main_patr();
 	void parse_response_main_patr();
 	
+	void read_message_body(http_message &mess);
 	void read_message_body_using_content_length();
+	void read_message_body_using_chunked_encoding();
+	
+	void read_chunck();
+	void read_chunk_size();
+	void read_chunk_data();
+	void read_trailer();
+	void finish_reading_trailer();
+	
+	void read_message_body_until_connection_not_closed();
 	
 	void on_read_completion(const char* buff, size_t size);
 	
-	void on_read_server_messadge_body_completion();
-	
+	void on_read_response_messadge_body_completion();
+	void on_read_request_messadge_body_completion();
 private:
 	std::shared_ptr<bool> is_alive;
 	
@@ -71,11 +85,14 @@ private:
 	func_t func_to_call_on_r_comp;
 	func_t to_call_on_read_main_part;
 	func_t to_call_on_read_message_body_completion;
+	func_t to_call_after_reading_line;
 	
 	const char *buff = nullptr;
 	size_t readed_bytes = 0;
-	size_t remaining_content_length;
+	
+	size_t remaining_length;
 	http_message *where_to_write_message_body;
+	std::queue<std::string> methods;
 	
 	char next;
 	std::string readed_buff;

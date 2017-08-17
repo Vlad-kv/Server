@@ -9,6 +9,8 @@ struct http_message {
 	http_message(http_message &&req);
 	http_message(std::multimap<std::string, std::string> headers,
 					std::vector<char> message_body);
+	http_message(std::multimap<std::string, std::string> headers,
+					std::string message_body);
 	
 	std::multimap<std::string, std::string> headers;
 	std::vector<char> message_body;
@@ -23,6 +25,10 @@ struct http_request : http_message {
 						std::pair<int, int> version,
 						std::multimap<std::string, std::string> headers,
 						std::vector<char> message_body);
+	http_request(std::string method, std::string uri,
+						std::pair<int, int> version,
+						std::multimap<std::string, std::string> headers,
+						std::string message_body);
 	int extract_port_number();
 	std::string extract_host();
 private:

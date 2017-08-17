@@ -41,6 +41,19 @@ proxy_server::proxy_server(std::string addres_of_main_socket, int port, IO_compl
   executer(comp_port, 3, 10, 2) {
 }
 
+void proxy_server::write_to_server(client_data &data) {
+	if ((data.server_writer->is_previous_request_completed()) &&
+		(!data.client_requests.empty()) &&
+		(data.client_requests.front()->is_getaddrinfo_completed)) {
+		
+		LOG("writing to server:\n");
+		LOG(to_string(data.client_requests.front()->request) << "\n###############\n");
+		
+		data.server_writer->write_request(data.client_requests.front()->request);
+		data.client_requests.pop();
+	}
+}
+
 void proxy_server::notify_client_about_error(client_data &data, int status_code, std::string reason_phrase) {
 	if ((data.to_write_server_req_and_delete) || (data.to_delete)) {
 		return;
@@ -142,10 +155,11 @@ void proxy_server::on_writing_shutdowning_from_client(client_data &data) {
 	delete_client_data(data);
 }
 
-void proxy_server::on_server_response_reading_completion(client_data &data, http_response req) {
-	LOG("in on_server_response_reading_completion\n");
+void proxy_server::on_server_response_reading_completion(client_data &data, http_response resp) {
+	LOG("in on_server_response_reading_completion:\n");
+	LOG(to_string(resp) << "\n################\n");
 	
-	data.server_responses.push(move(req));
+	data.server_responses.push(move(resp));
 	if (data.client_writer->is_previous_request_completed()) {
 		data.client_writer->write_request(data.server_responses.front());
 		data.server_responses.pop();
@@ -170,13 +184,7 @@ void proxy_server::on_client_request_writing_completion(client_data &data) {
 	if (data.server_reader->is_previous_request_completed()) {
 		data.server_reader->read_server_response();
 	}
-	if ((data.server_writer->is_previous_request_completed()) &&
-		(!data.client_requests.empty()) &&
-		(data.client_requests.front()->is_getaddrinfo_completed)) {
-		
-		data.server_writer->write_request(data.client_requests.front()->request);
-		data.client_requests.pop();
-	}
+	write_to_server(data);
 }
 void proxy_server::on_writing_shutdowning_from_server(client_data &data) {
 	LOG("in on_writing_shutdowning_from_server\n");
@@ -218,15 +226,7 @@ void proxy_server::getaddrinfo_callback(client_data &data, addrinfo *info, std::
 	}
 	req->is_getaddrinfo_completed = true;
 	
-	if ((data.server_writer->is_previous_request_completed()) &&
-		(data.client_requests.front()->is_getaddrinfo_completed)) {
-		
-		LOG("writing to server:\n");
-		LOG(to_string(data.client_requests.front()->request) << "\n###############\n");
-		
-		data.server_writer->write_request(data.client_requests.front()->request);
-		data.client_requests.pop();
-	}
+	write_to_server(data);
 }
 
 void proxy_server::delete_client_data(client_data &data) {

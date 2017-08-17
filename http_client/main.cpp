@@ -37,11 +37,26 @@ int main() {
 		}
 	);
 	
+//	writer.write_request(http_request(
+//		"TRACE", "/", {1, 1}, {
+//			{"User-Agent", "Mozilla/4.0 (compatible; MSIE5.01; Windows NT)"},
+//			{"Host", "codeforces.com"}
+//		}, {}
+//	));
+	
 	writer.write_request(http_request(
 		"TRACE", "/", {1, 1}, {
-			{"User-Agent", "Mozilla/4.0 (compatible; MSIE5.01; Windows NT)"},
-			{"Host", "www.tutorialspoint.com"}
-		}, {}
+			{"Host", "codeforces.com"},
+			{"Transfer-Encoding", "gzip, chunked"}
+		}, 
+		"4\r\n"
+		"qwer\r\n"
+		"2; ...\r\n"
+		"ty\r\n"
+		"0\r\n"
+		"Host: codeforces.ru\r\n"
+		"My-header: 124\r\n"
+		"\r\n"
 	));
 	
 	port.start();

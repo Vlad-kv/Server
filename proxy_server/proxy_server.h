@@ -36,6 +36,8 @@ public:
 	proxy_server(std::string addres_of_main_socket, int port, IO_completion_port &comp_port);
 	
 private:
+	void write_to_server(client_data &data);
+	
 	void notify_client_about_error(client_data &data, int status_code, std::string reason_phrase);
 	
 	void on_accept(client_socket_2 client_s) override;

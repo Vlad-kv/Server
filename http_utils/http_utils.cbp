@@ -34,10 +34,10 @@
 				</Linker>
 			</Target>
 		</Build>
+		<Unit filename="http_message.cpp" />
+		<Unit filename="http_message.h" />
 		<Unit filename="http_reader.cpp" />
 		<Unit filename="http_reader.h" />
-		<Unit filename="http_request.cpp" />
-		<Unit filename="http_request.h" />
 		<Unit filename="http_utils.h" />
 		<Unit filename="http_writer.cpp" />
 		<Unit filename="http_writer.h" />

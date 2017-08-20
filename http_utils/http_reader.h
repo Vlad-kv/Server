@@ -42,6 +42,9 @@ public:
 	
 	bool is_previous_request_completed();
 	
+	bool is_last_response_available();
+	http_response get_last_response();
+	
 	void close();
 	~http_reader();
 private:
@@ -73,6 +76,7 @@ private:
 	void on_read_request_messadge_body_completion();
 private:
 	std::shared_ptr<bool> is_alive;
+	bool reading_until_not_closing = false;
 	
 	std::unique_ptr<http_request> forming_client_req = nullptr;
 	std::unique_ptr<http_response> forming_server_resp = nullptr;

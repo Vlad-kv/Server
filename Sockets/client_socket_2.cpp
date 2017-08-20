@@ -22,11 +22,10 @@ client_socket_2& client_socket_2::operator=(client_socket_2 &&c_s_2) {
 void client_socket_2::set_on_read_completion(func_read_t on_read_completion) {
 	c_s.set_on_read_completion(on_read_completion);
 }
-
 void client_socket_2::set_on_write_completion(func_write_t on_write_completion) {
 	c_s.set_on_write_completion(on_write_completion);
 }
-void client_socket_2::set_on_disconnect(func_disc_t on_disconnect) {
+void client_socket_2::set_on_disconnect(func_t on_disconnect) {
 	c_s.set_on_disconnect(on_disconnect);
 }
 

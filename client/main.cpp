@@ -15,11 +15,23 @@ int main() {
 		
 		IO_completion_port port;
 		client_socket client(AF_INET, SOCK_STREAM, 0);
-		client.connect(AF_INET, MAIN_SOCKET_ADDRES, 8001);
-		
-		int sended_bytes = 0;
 		
 		string recv_str, test_str;
+		for (int w = 0; w < 4000; w++) {
+			test_str += "_" + to_string(w);
+		}
+		cout << "size : " << test_str.size() << "\n";
+		
+		port.registrate_socket(client);
+		
+		client.connect(AF_INET, MAIN_SOCKET_ADDRES, 8001);
+		
+		client.set_on_connect([&]() {
+			cout << "in on_connect\n";
+			client.write_some(&test_str[0], test_str.size());
+			client.read_some();
+		});
+		int sended_bytes = 0;
 		
 		client.set_on_read_completion(
 			[&](const char* buff, size_t transmited_bytes) {
@@ -36,7 +48,7 @@ int main() {
 		
 		client.set_on_write_completion(
 			[&](size_t saved_bytes, size_t transmited_bytes) {
-				Sleep(4000);
+//				Sleep(4000);
 				if (transmited_bytes == 0) {
 					client.execute_on_disconnect();
 				} else {
@@ -62,16 +74,6 @@ int main() {
 				port.interrupt();
 			}
 		);
-		
-		for (int w = 0; w < 400; w++) {
-			test_str += "_" + to_string(w);
-		}
-		cout << "size : " << test_str.size() << "\n";
-		
-		port.registrate_socket(client);
-		
-		client.write_some(&test_str[0], test_str.size());
-		client.read_some();
 		
 		port.start();
 	}

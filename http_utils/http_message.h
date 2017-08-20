@@ -15,8 +15,8 @@ struct http_message {
 	std::multimap<std::string, std::string> headers;
 	std::vector<char> message_body;
 };
-std::vector<char> to_vector(const http_message& req);
-std::string to_string(const http_message& req);
+std::vector<char> to_vector(const http_message& req, bool with_body = true);
+std::string to_string(const http_message& req, bool with_body = true);
 
 struct http_request : http_message {
 	http_request();
@@ -38,8 +38,8 @@ public:
 	std::string method, uri;
 	std::pair<int, int> version;
 };
-std::vector<char> to_vector(const http_request& req);
-std::string to_string(const http_request& req);
+std::vector<char> to_vector(const http_request& req, bool with_body = true);
+std::string to_string(const http_request& req, bool with_body = true);
 
 struct http_response : http_message {
 	http_response();
@@ -53,7 +53,7 @@ struct http_response : http_message {
 	int status_code;
 	std::string reason_phrase;
 };
-std::vector<char> to_vector(const http_response& req);
-std::string to_string(const http_response& req);
+std::vector<char> to_vector(const http_response& req, bool with_body = true);
+std::string to_string(const http_response& req, bool with_body = true);
 
 #endif // HTTP_MESSAGE_H

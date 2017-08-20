@@ -8,7 +8,6 @@ class echo_server;
 #include "../Sockets/sockets.h"
 
 class echo_server : public abstract_server {
-	static const int BUFFER_SIZE = 1024;
 public:
 	echo_server(std::string addres_of_main_socket, int address_family, int type, int protocol, int port, IO_completion_port &comp_port);
 private:

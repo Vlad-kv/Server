@@ -126,13 +126,33 @@ void buffer_to_write::write_to_buffer(const char *buff, size_t size) {
 
 ///------------------------------------------
 
+void client_socket::init_ConnectEx() {
+	GuidConnectEx = new GUID;
+	*GuidConnectEx = WSAID_CONNECTEX;
+	
+	DWORD unused;
+	int res = WSAIoctl(sd.get_sd(), SIO_GET_EXTENSION_FUNCTION_POINTER,
+						 GuidConnectEx, sizeof(GUID),
+						&lpfnConnectEx, sizeof(lpfnConnectEx),
+						&unused, NULL, NULL);
+	if (res == SOCKET_ERROR) {
+		delete GuidConnectEx;
+		int error = WSAGetLastError();
+		try {
+			sd.close();
+		} catch (...) {
+			LOG("Double fail in init_ConnectEx.");
+		}
+		throw new socket_exception("WSAIoctl failed with error : " + to_string(error) + "\n");
+	}
+}
+
 void client_socket::on_completion(DWORD transmited_bytes,
 		const key_ptr key, abstract_overlapped *overlapped, int error) {
 	recv_send_overlapped *real_overlaped = 
 							reinterpret_cast<recv_send_overlapped*>(overlapped);
 	int type = real_overlaped->type_of_operation;
 	void *buff_ptr = real_overlaped->release_buff_ptr();
-	
 	delete real_overlaped;
 	
 	client_socket *real_ptr = (client_socket*)key->get_ptr();
@@ -148,7 +168,7 @@ void client_socket::on_completion(DWORD transmited_bytes,
 	}
 	
 	if (error == WSA_OPERATION_ABORTED) {
-		LOG("servers_client_socket operation aborted\n");
+		LOG("client_socket operation aborted\n");
 		return;
 	}
 	if (error != 0) {
@@ -169,7 +189,16 @@ void client_socket::on_completion(DWORD transmited_bytes,
 		real_ptr->on_write_completion(real_ptr->b_to_write->get_saved_size(), transmited_bytes);
 		return;
 	}
-	throw new socket_exception("Uncnown operation code : " + to_string(type) + "\n");
+	if (type == recv_send_overlapped::CONNECT_KEY) {
+		if (0 != setsockopt(real_ptr->get_sd(), SOL_SOCKET,
+							SO_UPDATE_CONNECT_CONTEXT, nullptr, 0)) {
+			error = WSAGetLastError();
+			throw new socket_exception("setsockopt failed with error : " + to_string(error) + "\n");
+		}
+		real_ptr->on_connect();
+		return;
+	}
+	throw new socket_exception("Unknown operation code : " + to_string(type) + "\n");
 }
 
 client_socket::client_socket()
@@ -185,11 +214,24 @@ client_socket::client_socket(socket_descriptor &&sd, size_t read_buffer_size)
 		b_to_read = nullptr;
 		throw;
 	}
+	init_ConnectEx();
 }
-client_socket::client_socket(client_socket &&other)
-: abstract_socket(on_completion) {
-	*this = move(other);
+client_socket::client_socket(client_socket &&c_s)
+: abstract_socket(static_cast<abstract_socket&&>(c_s)) {
+	swap(on_read_completion, c_s.on_read_completion);
+	swap(on_write_completion, c_s.on_write_completion);
+	swap(on_disconnect, c_s.on_disconnect);
+	
+	swap(b_to_read, c_s.b_to_read);
+	swap(b_to_write, c_s.b_to_write);
+	
+	swap(is_connected, c_s.is_connected);
+	swap(is_bound, c_s.is_bound);
+	
+	swap(GuidConnectEx, c_s.GuidConnectEx);
+	swap(lpfnConnectEx, c_s.lpfnConnectEx);
 }
+
 client_socket::client_socket(int address_family, int type, int protocol, size_t read_buffer_size)
 : abstract_socket(on_completion, address_family, type, protocol) {
 	b_to_read = new buffer_to_read(read_buffer_size);
@@ -200,6 +242,7 @@ client_socket::client_socket(int address_family, int type, int protocol, size_t 
 		b_to_read = nullptr;
 		throw;
 	}
+	init_ConnectEx();
 }
 
 void client_socket::set_on_read_completion(func_read_t on_read_completion) {
@@ -208,7 +251,10 @@ void client_socket::set_on_read_completion(func_read_t on_read_completion) {
 void client_socket::set_on_write_completion(func_write_t on_write_completion) {
 	this->on_write_completion = on_write_completion;
 }
-void client_socket::set_on_disconnect(func_disc_t on_disconnect) {
+void client_socket::set_on_connect(func_t on_connect) {
+	this->on_connect = on_connect;
+}
+void client_socket::set_on_disconnect(func_t on_disconnect) {
 	this->on_disconnect = on_disconnect;
 }
 
@@ -291,6 +337,8 @@ size_t client_socket::get_num_of_saved_bytes() {
 	return b_to_write->get_saved_size();
 }
 
+
+
 void client_socket::connect(short family, const std::string& addr, u_short port) {
 	connect(family, inet_addr(&addr[0]), port);
 }
@@ -300,13 +348,33 @@ void client_socket::connect(short family, unsigned long addr, u_short port) {
 	}
 	sockaddr_in addres;
 	
+	if (!is_bound) {
+		addres.sin_family = family;
+		addres.sin_addr.s_addr = ADDR_ANY;
+		addres.sin_port = 0;
+		
+		if (SOCKET_ERROR == ::bind(sd.get_sd(), (SOCKADDR*) &addres, sizeof(addres))) {
+			int error = WSAGetLastError();
+			throw new socket_exception("bind failed with error : " + to_string(error) + "\n");
+		}
+		is_bound = true;
+	}
+	
 	addres.sin_family = family;
 	addres.sin_addr.s_addr = addr;
 	addres.sin_port = htons(port);
 	
-	int res = ::connect(sd.get_sd(), (SOCKADDR*) &addres, sizeof(addres));
-	if (res == SOCKET_ERROR) {
-		throw new socket_exception("Connect function failed with error " + to_string(WSAGetLastError()) + "\n");
+	recv_send_overlapped *overlapped = new recv_send_overlapped(*this, recv_send_overlapped::CONNECT_KEY,
+																nullptr, 0, nullptr);
+	
+	bool res = lpfnConnectEx(sd.get_sd(), (SOCKADDR*) &addres, sizeof(addres),
+							nullptr, 0, nullptr, &overlapped->overlapped);
+	if (res == FALSE) {
+		int error = WSAGetLastError();
+		if (error != ERROR_IO_PENDING) {
+			delete overlapped;
+			throw new socket_exception("ConnectEx failed with error : " + to_string(error) + "\n");
+		}
 	}
 	is_connected = true;
 }
@@ -339,7 +407,7 @@ void client_socket::shutdown_writing() {
 
 void client_socket::execute_on_disconnect() {
 	if (on_disconnect != nullptr) {
-		func_disc_t temp = move(on_disconnect);
+		func_t temp = move(on_disconnect);
 		on_disconnect = nullptr;
 		temp();
 	}
@@ -349,6 +417,16 @@ void client_socket::close() {
 	if (sd.is_valid()) {
 		delete b_to_read;
 		delete b_to_write;
+		b_to_read = nullptr;
+		b_to_write = nullptr;
+		
+		is_connected = false;
+		is_bound = false;
+		
+		delete GuidConnectEx;
+		GuidConnectEx = nullptr;
+		lpfnConnectEx = NULL;
+		
 		sd.close();
 		close_comp_key();
 		execute_on_disconnect();
@@ -372,8 +450,11 @@ client_socket& client_socket::operator=(client_socket&& c_s) {
 	b_to_read = c_s.b_to_read;
 	b_to_write = c_s.b_to_write;
 	
-	c_s.b_to_read = nullptr;
-	c_s.b_to_write = nullptr;
+	swap(is_connected, c_s.is_connected);
+	swap(is_bound, c_s.is_bound);
+	
+	swap(GuidConnectEx, c_s.GuidConnectEx);
+	swap(lpfnConnectEx, c_s.lpfnConnectEx);
 	
 	*(abstract_socket*)this = move(c_s);
 	return *this;
@@ -445,6 +526,8 @@ server_socket::server_socket(socket_descriptor &&sd, func_t on_accept)
 }
 server_socket::server_socket(server_socket &&other)
 : abstract_socket(static_cast<abstract_socket&&>(other)) {
+	
+	
 	swap(GuidAcceptEx, other.GuidAcceptEx);
 	swap(lpfnAcceptEx, other.lpfnAcceptEx);
 	swap(on_accept, other.on_accept);

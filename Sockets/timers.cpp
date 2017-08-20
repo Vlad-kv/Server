@@ -51,6 +51,7 @@ timer& timer::operator=(timer &&t) {
 	
 	t.unregistrate();
 	port->registrate_timer(*this);
+	return *this;
 }
 timer::~timer() {
 	unregistrate();

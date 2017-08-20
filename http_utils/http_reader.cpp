@@ -19,7 +19,6 @@ using namespace std;
 
 #define ERROR_CHECK(b, mess)\
 	if (b) {\
-		clear();\
 		on_error(mess);\
 		return;\
 	}
@@ -44,7 +43,7 @@ namespace {
 		"Content-Encoding", "Content-Type", "Content-Range", "Trailer"
 	});
 }
-	
+
 void http_reader::read_client_request() {
 	my_assert(!is_previous_request_completed(), "previous request not completed");
 	my_assert(!*is_alive, "http_reader already closed\n");
@@ -72,6 +71,18 @@ void http_reader::add_method_that_was_sended_to_server(std::string method) {
 }
 bool http_reader::is_previous_request_completed() {
 	return ((forming_server_resp == nullptr) && (forming_client_req == nullptr));
+}
+
+bool http_reader::is_last_response_available() {
+	return reading_until_not_closing;
+}
+http_response http_reader::get_last_response() {
+	if (!is_last_response_available()) {
+		throw new runtime_error("last message not available");
+	}
+	unique_ptr<http_response> temp = move(forming_server_resp);
+	reading_until_not_closing = false;
+	return move(*temp);
 }
 
 void http_reader::close() {
@@ -342,13 +353,13 @@ void http_reader::read_chunk_size() {
 	bool is_empty = true;
 	
 	while ((('0' <= readed_buff[pos]) && (readed_buff[pos] <= '9')) ||
-		   (('A' <= readed_buff[pos]) && (readed_buff[pos] <= 'E'))) {
+		   (('a' <= readed_buff[pos]) && (readed_buff[pos] <= 'f'))) {
 		is_empty = false;
 		size_t digit;
 		if (('0' <= readed_buff[pos]) && (readed_buff[pos] <= '9')) {
 			digit = readed_buff[pos] - '0';
 		} else {
-			digit = 10 + readed_buff[pos] - 'A';
+			digit = 10 + readed_buff[pos] - 'a';
 		}
 		ERROR_CHECK((chunck_size * 16) / 16 != chunck_size, SYNTAX_ERROR);
 		chunck_size = chunck_size * 16 + digit;
@@ -371,6 +382,7 @@ void http_reader::read_chunk_data() {
 		message.push_back(next);
 		remaining_length--;
 	}
+	
 	ERROR_CHECK((message[message.size() - 2] != '\r') ||
 				(message[message.size() - 1] != '\n'), SYNTAX_ERROR);
 	message.pop_back();
@@ -409,8 +421,12 @@ void http_reader::finish_reading_trailer() {
 }
 
 void http_reader::read_message_body_until_connection_not_closed() {
-	// TODO
-	assert(0);
+	SET_ON_R_COMP(read_message_body_until_connection_not_closed);
+	reading_until_not_closing = true;
+	while (true) {
+		GET_NEXT_CHAR();
+		where_to_write_message_body->message_body.push_back(next);
+	}
 }
 
 std::pair<std::string, std::string> http_reader::read_header(int &pos) {

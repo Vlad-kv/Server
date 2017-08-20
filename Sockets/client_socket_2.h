@@ -14,7 +14,7 @@ class client_socket_2 {
 	
 	typedef client_socket::func_read_t  func_read_t;
 	typedef client_socket::func_write_t func_write_t;
-	typedef client_socket::func_disc_t  func_disc_t;
+	typedef client_socket::func_t  func_t;
 	
 	client_socket c_s;
 	long long id = -1;
@@ -29,7 +29,7 @@ public:
 	
 	void set_on_read_completion(func_read_t on_read_completion);
 	void set_on_write_completion(func_write_t on_write_completion);
-	void set_on_disconnect(func_disc_t on_disconnect);
+	void set_on_disconnect(func_t on_disconnect);
 	
 	void read_some();
 	void write_some(const char *buff, size_t size);

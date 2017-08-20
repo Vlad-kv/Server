@@ -86,6 +86,7 @@ struct recv_send_overlapped : public abstract_overlapped {
 	
 	const static int RECV_KEY = 0;
 	const static int SEND_KEY = 1;
+	const static int CONNECT_KEY = 2;
 	
 	const int type_of_operation;
 	WSABUF buff;
@@ -128,7 +129,7 @@ public:
 	
 	typedef std::function<void (const char* buff, size_t transmitted_bytes)> func_read_t;
 	typedef std::function<void (size_t saved_bytes, size_t transmitted_bytes)> func_write_t;
-	typedef std::function<void ()> func_disc_t;
+	typedef std::function<void ()> func_t;
 	
 	typedef completion_key::key_ptr key_ptr;
 	typedef completion_key::on_comp_t on_comp_t;
@@ -136,14 +137,21 @@ public:
 private:
 	func_read_t on_read_completion;
 	func_write_t on_write_completion;
-	func_disc_t on_disconnect;
+	func_t on_connect;
+	func_t on_disconnect;
 	
 	bool is_connected = false;
+	bool is_bound = false;
 	buffer_to_read *b_to_read = nullptr;
 	buffer_to_write *b_to_write = nullptr;
 	
+	GUID *GuidConnectEx = nullptr;
+	LPFN_CONNECTEX lpfnConnectEx = NULL;
+	
 	friend class IO_completion_port;
 	friend class server_socket;
+	
+	void init_ConnectEx();
 	
 	static void on_completion(DWORD transmited_bytes, const key_ptr key,
 								abstract_overlapped *overlapped, int error);
@@ -151,12 +159,13 @@ public:
 	client_socket();
 	client_socket(socket_descriptor &&sd, size_t read_buffer_size = DEFAULT_BUFFER_SIZE);
 	client_socket(const client_socket &) = delete;
-	client_socket(client_socket &&other);
+	client_socket(client_socket &&c_s);
 	client_socket(int address_family, int type, int protocol, size_t read_buffer_size = DEFAULT_BUFFER_SIZE);
 	
 	void set_on_read_completion(func_read_t on_read_completion);
 	void set_on_write_completion(func_write_t on_write_completion);
-	void set_on_disconnect(func_disc_t on_disconnect);
+	void set_on_connect(func_t on_connect);
+	void set_on_disconnect(func_t on_disconnect);
 	
 	void read_some();
 	void write_some(const char *buff, size_t size);

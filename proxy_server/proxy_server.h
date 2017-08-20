@@ -31,6 +31,7 @@ public:
 		
 		bool to_write_server_req_and_delete = false;
 		bool to_delete = false;
+		bool to_delete_on_empty_server_responses = false;
 	};
 	
 	proxy_server(std::string addres_of_main_socket, int port, IO_completion_port &comp_port);
@@ -59,6 +60,7 @@ private:
 	void on_server_disconnect(client_data &data);
 	
 	void getaddrinfo_callback(client_data &data, addrinfo *info, std::shared_ptr<queue_element> req, int port);
+	void on_connect_completion(client_data &data, std::shared_ptr<queue_element> req);
 	
 	void delete_client_data(client_data &data);
 private:

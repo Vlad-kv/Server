@@ -3,6 +3,15 @@
 
 #include <map>
 #include <vector>
+#include "../Sockets/sockets.h"
+
+struct uri_authority {
+	uri_authority(const std::string &str);
+	uri_authority(uri_authority &&auth);
+	
+	std::string userinfo, host;
+	int port = 0;
+};
 
 struct http_message {
 	http_message();
@@ -32,7 +41,8 @@ struct http_request : http_message {
 	int extract_port_number();
 	std::string extract_host();
 private:
-	static int extract_port(const std::string& uri);
+	static uri_authority extract_authority(const std::string& uri);
+	static std::string extract_scheme(const std::string& uri);
 public:
 	
 	std::string method, uri;

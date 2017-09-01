@@ -41,9 +41,12 @@ public:
 	void add_method_that_was_sended_to_server(std::string method);
 	
 	bool is_previous_request_completed();
+	bool is_it_shutdowned();
 	
 	bool is_last_response_available();
 	http_response get_last_response();
+	
+	std::pair<const char*, size_t> get_extra_readed_data();
 	
 	void close();
 	~http_reader();
@@ -77,6 +80,8 @@ private:
 private:
 	std::shared_ptr<bool> is_alive;
 	bool reading_until_not_closing = false;
+	
+	bool is_reading_shutdowned = false;
 	
 	std::unique_ptr<http_request> forming_client_req = nullptr;
 	std::unique_ptr<http_response> forming_server_resp = nullptr;

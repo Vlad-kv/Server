@@ -19,6 +19,9 @@ using namespace std;
 
 #define ERROR_CHECK(b, mess)\
 	if (b) {\
+		if (mess == READING_SHUTDOWNED_ERROR) {\
+			is_reading_shutdowned = true;\
+		}\
 		on_error(mess);\
 		return;\
 	}
@@ -47,6 +50,7 @@ namespace {
 void http_reader::read_client_request() {
 	my_assert(!is_previous_request_completed(), "previous request not completed");
 	my_assert(!*is_alive, "http_reader already closed\n");
+	my_assert(is_reading_shutdowned, "http_reader already shutdowned");
 	
 	forming_client_req = make_unique<http_request>();
 	
@@ -72,6 +76,9 @@ void http_reader::add_method_that_was_sended_to_server(std::string method) {
 bool http_reader::is_previous_request_completed() {
 	return ((forming_server_resp == nullptr) && (forming_client_req == nullptr));
 }
+bool http_reader::is_it_shutdowned() {
+	return is_reading_shutdowned;
+}
 
 bool http_reader::is_last_response_available() {
 	return reading_until_not_closing;
@@ -81,8 +88,13 @@ http_response http_reader::get_last_response() {
 		throw new runtime_error("last message not available");
 	}
 	unique_ptr<http_response> temp = move(forming_server_resp);
+	
 	reading_until_not_closing = false;
 	return move(*temp);
+}
+
+std::pair<const char*, size_t> http_reader::get_extra_readed_data() {
+	return {buff, readed_bytes};
 }
 
 void http_reader::close() {
@@ -99,12 +111,13 @@ void http_reader::clear() {
 
 void http_reader::on_read_completion(const char* buff, size_t size) {
 	LOG("in http_reader::on_read_completion: size == " << size << "\n");
-//	for (int w = 0; w < size; w++) {
-//		cout << buff[w];
+//	for (size_t w = 0; w < size; w++) {
+//		LOG(buff[w]);
 //	}
-//	cout << "###############################\n";
+//	LOG("###############################\n");
 	this->buff = buff;
 	this->readed_bytes = size;
+	
 	ERROR_CHECK(size == 0, READING_SHUTDOWNED_ERROR);
 	func_to_call_on_r_comp();
 }
@@ -129,6 +142,7 @@ void http_reader::read_main_part() {
 		GET_NEXT_CHAR();
 		readed_buff.push_back(next);
 	}
+	LOG("readed_buff :\n" << readed_buff << " #########\n\n");
 	to_call_on_read_main_part();
 }
 

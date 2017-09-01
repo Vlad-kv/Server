@@ -4,6 +4,7 @@ using namespace std;
 const char* MAIN_SOCKET_ADDRES = "127.0.0.1";
 
 int main() {
+	clear_log_file();
 	{
 		WSA_holder wsa_holder(MAKEWORD(2, 2));
 		

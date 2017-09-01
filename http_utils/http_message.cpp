@@ -1,4 +1,6 @@
 #include "http_message.h"
+#include <iostream>
+#include <cassert>
 using namespace std;
 
 namespace {
@@ -9,6 +11,44 @@ namespace {
 		}
 		return res;
 	}
+}
+
+uri_authority::uri_authority(const std::string &str) {
+	size_t pos = 0;
+	string temp;
+	while ((pos < str.size()) && (str[pos] != '@')
+							  && (str[pos] != ':')) {
+		temp += str[pos++];
+	}
+	if (str[pos] == '@') {
+		userinfo = temp;
+		pos++;
+		
+		while ((pos < str.size()) && (str[pos] != ':')) {
+			host.push_back(str[pos++]);
+		}
+	} else {
+		host = temp;
+	}
+	if (str[pos] == ':') {
+		pos++;
+		while (pos < str.size()) {
+			if (!(('0' <= str[pos]) && (str[pos] <= '9'))) {
+				throw new runtime_error("invalid port");
+			}
+			int new_port = port * 10 + str[pos] - '0';
+			if (new_port / 10 != port) {
+				throw new runtime_error("too big port number");
+			}
+			port = new_port;
+			pos++;
+		}
+	}
+}
+uri_authority::uri_authority(uri_authority &&auth) {
+	userinfo = auth.userinfo;
+	host = auth.host;
+	port = auth.port;
 }
 
 http_message::http_message() {
@@ -68,73 +108,77 @@ http_request::http_request(std::string method, std::string uri,
 : http_message(move(headers), move(message_body)), method(move(method)),
   uri(move(uri)), version(move(version)) {
 }
-int http_request::extract_port(const std::string& uri) {
+uri_authority http_request::extract_authority(const std::string& uri) {
 	size_t pos = 0;
-	if ((uri.size() >= 7) && (uri.substr(0, 7) == "http://")) {
-		pos = 7;
-	}
 	while ((pos < uri.size()) && (uri[pos] != ':')) {
 		pos++;
 	}
-	if (pos == uri.size()) {
-		return 0;
-	}
 	pos++;
-	string str_port;
-	while ((pos < uri.size()) && (('0' <= uri[pos]) && (uri[pos] <= '9'))) {
-		str_port.push_back(uri[pos++]);
+	if ((pos + 2 >= uri.size()) || (uri.substr(pos, 2) != "//")) {
+		return uri_authority("");
 	}
-	try {
-		return stoi(str_port);
-	} catch (...) {
-		return 0;
+	pos += 2;
+	size_t start_pos = pos;
+	while ((pos < uri.size()) && (uri[pos] != '/')
+			&& (uri[pos] != '?') && (uri[pos] != '#')) {
+		pos++;
 	}
+	return uri_authority(uri.substr(start_pos, pos - start_pos));
+}
+std::string http_request::extract_scheme(const std::string& uri) {
+	size_t pos = 0;
+	string res;
+	while ((pos < uri.size()) && (uri[pos] != ':')) {
+		char c = uri[pos];
+		if (('A' <= c) && (c <= 'Z')) {
+			c += 'a' - 'A';
+		}
+		res.push_back(c);
+		pos++;
+	}
+	return res;
 }
 int http_request::extract_port_number() {
-	int int_port = extract_port(uri);
-	if (headers.count("Host") == 0) {
-		if (int_port == 0) {
-			return 80;
-		}
-		return int_port;
-	}
-	string &str = (*headers.find("Host")).second;
-	string port;
-	size_t pos = 0;
-	while ((pos < str.size()) && (str[pos] != ':')) {
-		pos++;
-	}
-	if (pos != str.size()) {
-		pos++;
-		while (pos < str.size()) {
-			port.push_back(str[pos++]);
-		}
+	int port = 80;
+	if (extract_scheme(uri) == "https") {
+		port = 443;
 	}
 	try {
-		int_port = max(int_port, stoi(port));
+		int res;
+		if (method == "CONNECT") {
+			res = uri_authority(uri).port;
+		} else {
+			res = extract_authority(uri).port;
+		}
+		if (res > 0) {
+			port = res;
+		}
+		if (headers.count("Host") > 0) {
+			uri_authority authority((*headers.find("Host")).second);
+			if (authority.port > 0) {
+				port = authority.port;
+			}
+		}
 	} catch (...) {
+		cout << "Error in extract_port_number!!!\n";
+		assert(0);
 	}
-	if (int_port == 0) {
-		int_port = 80;
-	}
-	return int_port;
+	return port;
 }
 std::string http_request::extract_host() {
 	string host;
 	if (headers.count("Host") > 0) {
-		string &str = (*headers.find("Host")).second;
-		size_t pos = 0;
-		while ((pos < str.size()) && (str[pos] != ':')) {
-			host.push_back(str[pos++]);
+		return uri_authority((*headers.find("Host")).second).host;
+	}
+	try {
+		if (method == "CONNECT") {
+			host = uri_authority(uri).host;
+		} else {
+			host = extract_authority(uri).host;
 		}
-		return host;
-	}
-	size_t pos = 0;
-	if ((uri.size() >= 7) && (uri.substr(0, 7) == "http://")) {
-		pos = 7;
-	}
-	while ((pos < uri.size()) && (uri[pos] != ':') && (uri[pos] != '/')) {
-		host.push_back(uri[pos++]);
+	} catch (...) {
+		cout << "Error in extract_host!!!\n";
+		assert(0);
 	}
 	return host;
 }

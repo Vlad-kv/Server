@@ -4,16 +4,15 @@
 #include "../http_utils/http_utils.h"
 using namespace std;
 
-
-
 int main() {
+	clear_log_file();
 	WSA_holder wsa_holder(MAKEWORD(2, 2));
 	IO_completion_port port;
 	
 	client_socket client(AF_INET, SOCK_STREAM, 0);
-	client.connect(AF_INET, "127.0.0.1", 80);
-	
 	port.registrate_socket(client);
+	
+	client.connect(AF_INET, "127.0.0.1", 80);
 	
 	http_request get_to_codeforces(
 		"GET", "http://codeforces.com/contests", {1, 1}, {
@@ -69,13 +68,6 @@ int main() {
 			port.interrupt();
 		}
 	);
-	
-//	writer.write_request(http_request(
-//		"TRACE", "/", {1, 1}, {
-//			{"User-Agent", "Mozilla/4.0 (compatible; MSIE5.01; Windows NT)"},
-//			{"Host", "codeforces.com"}
-//		}, {}
-//	));
 	
 //	writer.write_request(http_request(
 //		"TRACE", "/", {1, 1}, {

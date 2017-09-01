@@ -21,10 +21,15 @@ abstract_socket* completion_key::get_ptr() const {
 
 abstract_overlapped::abstract_overlapped(const abstract_socket &this_socket)
 : key(this_socket.key) {
-	assert(this_socket.is_registrated); // socket is not registrated
-	assert((*this_socket.port_ptr) != nullptr); //IO_completion_port already closed
-	assert(!(*this_socket.port_ptr)->is_terminated); //IO_completion_port already terminated
-	
+	if (!this_socket.is_registrated) {
+		throw new socket_exception("socket is not registrated\n");
+	}
+	if ((*this_socket.port_ptr) == nullptr) {
+		throw new socket_exception("IO_completion_port already closed\n");
+	}
+	if ((*this_socket.port_ptr)->is_terminated) {
+		throw new socket_exception("IO_completion_port already terminated\n");
+	}
 	SecureZeroMemory((PVOID) &overlapped, sizeof(OVERLAPPED));
 }
 
@@ -177,7 +182,7 @@ void client_socket::on_completion(DWORD transmited_bytes,
 			real_ptr->execute_on_disconnect();
 			return;
 		}
-		throw new socket_exception("Error in GetQueuedCompletionStatus : " +
+		throw new socket_exception("Error in GetQueuedCompletionStatus (in client_socket) : " +
 									to_string(GetLastError()) + "\n");
 	}
 	if (type == recv_send_overlapped::RECV_KEY) {
@@ -490,7 +495,7 @@ void server_socket::on_completion(DWORD transmited_bytes,
 		return;
 	}
 	if (error != 0) {
-		throw new socket_exception("Error in GetQueuedCompletionStatus : " +
+		throw new socket_exception("Error in GetQueuedCompletionStatus (in server_socket) : " +
 									to_string(GetLastError()) + "\n");
 	}
 	((server_socket*)key->get_ptr())->on_accept(move(client));

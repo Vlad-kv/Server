@@ -6,28 +6,32 @@
 #include "../Sockets/sockets.h"
 #include "../http_utils/http_utils.h"
 
-struct queue_element {
-	queue_element(http_request &&request);
-	
-	http_request request;
-	bool is_getaddrinfo_completed = false;
-};
-
 class proxy_server : public abstract_server {
 public:
 	struct client_data {
 		client_data(proxy_server *this_server, client_socket_2 &&client);
 		client_data();
+		void init_server_part(proxy_server *this_server);
+		
+		void reset_server(proxy_server *this_server);
 		
 		client_socket_2 client;
 		std::unique_ptr<http_reader> client_reader;
 		std::unique_ptr<http_writer> client_writer;
-		std::queue<std::shared_ptr<queue_element>> client_requests;
+		std::queue<http_request> client_requests;
 		
 		client_socket server;
 		std::unique_ptr<http_reader> server_reader;
 		std::unique_ptr<http_writer> server_writer;
 		std::queue<http_response> server_responses;
+		
+		std::string current_host;
+		bool is_previous_connect_completed = true;
+		
+		int num_of_responses_to_read_from_server = 0;
+		
+		bool is_server_now_reseting = false;
+		bool tunnel_creating = false;
 		
 		bool to_write_server_req_and_delete = false;
 		bool to_delete = false;
@@ -38,6 +42,7 @@ public:
 	
 private:
 	void write_to_server(client_data &data);
+	void write_to_client(client_data &data);
 	
 	void notify_client_about_error(client_data &data, int status_code, std::string reason_phrase);
 	
@@ -59,10 +64,12 @@ private:
 	void on_client_disconnect(client_data &data);
 	void on_server_disconnect(client_data &data);
 	
-	void getaddrinfo_callback(client_data &data, addrinfo *info, std::shared_ptr<queue_element> req, int port);
-	void on_connect_completion(client_data &data, std::shared_ptr<queue_element> req);
+	void getaddrinfo_callback(client_data &data, addrinfo *info, int port);
+	void on_connect_completion(client_data &data);
 	
 	void delete_client_data(client_data &data);
+	
+	void establish_tunnel(client_data &data);
 private:
 	bool is_interrupted = false;
 	std::map<long long, client_data> clients;

@@ -44,17 +44,17 @@ void proxy_server::client_data::init_server_part(proxy_server *this_server) {
 	this_server->registrate_socket(server);
 }
 void proxy_server::client_data::reset_server(proxy_server *this_server) {
-	is_server_now_reseting = false;
+	is_server_now_reseting = true;
 	
-	server_reader->close();
-	server_writer->close();
+	server_reader = nullptr;
+	server_writer = nullptr;
 	server.set_on_disconnect([]() {});
 	server.close();
 	
 	server = client_socket(AF_INET, SOCK_STREAM, 0);
 	init_server_part(this_server);
 	
-	is_server_now_reseting = true;
+	is_server_now_reseting = false;
 }
 
 proxy_server::proxy_server(std::string addres_of_main_socket, int port, IO_completion_port &comp_port)
@@ -64,8 +64,22 @@ proxy_server::proxy_server(std::string addres_of_main_socket, int port, IO_compl
 
 void proxy_server::write_to_server(client_data &data) {
 	if ((data.server_writer->is_previous_request_completed()) &&
-		(!data.client_requests.empty()) &&
+//		(!data.client_requests.empty()) &&
 		(data.is_previous_connect_completed)) {
+		
+		if (data.client_requests.empty()) {
+			if (data.is_reading_from_client_shutdowned) {
+				if (!data.to_delete_on_empty_server_responses) {
+					if (!data.server.is_connected()) {
+						delete_client_data(data);
+						return;
+					}
+					data.server.shutdown_writing();
+					data.to_delete_on_empty_server_responses = true;
+				}
+			}
+			return;
+		}
 		
 		http_request &req = data.client_requests.front();
 		string host = req.extract_host();
@@ -83,8 +97,10 @@ void proxy_server::write_to_server(client_data &data) {
 				write_to_client(data);
 				return;
 			}
-			LOG("writing to server:\n");
-			LOG(to_string(req, false) << "\n###############\n");
+//			LOG("writing to server:\n");
+//			LOG(to_string(req, false) << "\n###############\n");
+//			
+			req.convert_uri_to_origin_form();
 			
 			data.server_reader->add_method_that_was_sended_to_server(req.method);
 			data.server_writer->write_request(req);
@@ -185,6 +201,9 @@ void proxy_server::on_client_request_reading_completion(client_data &data, http_
 		req.headers.emplace("Connection", (*req.headers.find("Proxy-Connection")).second);
 		req.headers.erase(req.headers.find("Proxy-Connection"));
 	}
+	
+//	LOG("res request:\n" << to_string(req) << "\n");
+	
 	string method = req.method;
 	
 	data.client_requests.push(move(req));
@@ -194,10 +213,15 @@ void proxy_server::on_client_request_reading_completion(client_data &data, http_
 	}
 }
 void proxy_server::on_read_error_from_client(client_data &data, int error) {
-	if (error != http_reader::READING_SHUTDOWNED_ERROR) {
-		LOG("in proxy_server::on_read_error_from_client\n");
-		notify_client_about_error(data, 400, "Bad Request");
+	LOG("in on_read_error_from_client !!!!!!!!!!!!!!!!!!!!!!!!\n");
+	if (error == http_reader::READING_SHUTDOWNED_ERROR) {
+		LOG("in proxy_server::on_read_error_from_client : READING_SHUTDOWNED_ERROR\n");
+		data.is_reading_from_client_shutdowned = true;
+		write_to_server(data);
+		return;
 	}
+	LOG("in proxy_server::on_read_error_from_client\n");
+	notify_client_about_error(data, 400, "Bad Request");
 }
 
 void proxy_server::on_server_response_writing_completion(client_data &data) {
@@ -353,6 +377,8 @@ void proxy_server::establish_tunnel(client_data &data) {
 		[&data](const char* buff, size_t size) {
 			if (size > 0) {
 				data.server.write_some(buff, size);
+			} else {
+				data.server.shutdown_writing();
 			}
 		}
 	);
@@ -383,6 +409,7 @@ void proxy_server::establish_tunnel(client_data &data) {
 	data.server.set_on_write_completion(
 		[&data](size_t saved_bytes, size_t transmitted_bytes) {
 			if (transmitted_bytes == 0) {
+				data.client.shutdown_reading();
 				return;
 			}
 			if (saved_bytes > 0) {

@@ -140,7 +140,7 @@ private:
 	func_t on_connect;
 	func_t on_disconnect;
 	
-	bool is_connected = false;
+	bool is_it_connected = false;
 	bool is_bound = false;
 	buffer_to_read *b_to_read = nullptr;
 	buffer_to_write *b_to_write = nullptr;
@@ -174,6 +174,7 @@ public:
 	
 	void connect(short family, const std::string& addr, u_short port);
 	void connect(short family, unsigned long addr, u_short port);
+	bool is_connected() const;
 	
 	bool is_reading_available();
 	bool is_writing_available();

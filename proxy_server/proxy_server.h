@@ -36,6 +36,8 @@ public:
 		bool to_write_server_req_and_delete = false;
 		bool to_delete = false;
 		bool to_delete_on_empty_server_responses = false;
+		
+		bool is_reading_from_client_shutdowned = false;
 	};
 	
 	proxy_server(std::string addres_of_main_socket, int port, IO_completion_port &comp_port);

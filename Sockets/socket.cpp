@@ -200,6 +200,7 @@ void client_socket::on_completion(DWORD transmited_bytes,
 			error = WSAGetLastError();
 			throw socket_exception("setsockopt failed with error : " + to_string(error) + "\n");
 		}
+		real_ptr->is_it_connected = true;
 		real_ptr->on_connect();
 		return;
 	}
@@ -231,7 +232,7 @@ client_socket::client_socket(client_socket &&c_s)
 	swap(b_to_read, c_s.b_to_read);
 	swap(b_to_write, c_s.b_to_write);
 	
-	swap(is_connected, c_s.is_connected);
+	swap(is_it_connected, c_s.is_it_connected);
 	swap(is_bound, c_s.is_bound);
 	
 	swap(GuidConnectEx, c_s.GuidConnectEx);
@@ -266,6 +267,7 @@ void client_socket::set_on_disconnect(func_t on_disconnect) {
 
 void client_socket::read_some() {
 	if (b_to_read == nullptr) {
+		
 		throw socket_exception("previous operation uncompleted\n");
 	}
 	DWORD received_bytes;
@@ -349,7 +351,7 @@ void client_socket::connect(short family, const std::string& addr, u_short port)
 	connect(family, inet_addr(&addr[0]), port);
 }
 void client_socket::connect(short family, unsigned long addr, u_short port) {
-	if (is_connected) {
+	if (is_it_connected) {
 		throw socket_exception("client_socket already connected\n");
 	}
 	sockaddr_in addres;
@@ -381,8 +383,12 @@ void client_socket::connect(short family, unsigned long addr, u_short port) {
 			delete overlapped;
 			throw socket_exception("ConnectEx failed with error : " + to_string(error) + "\n");
 		}
+	} else {
+		is_it_connected = true;
 	}
-	is_connected = true;
+}
+bool client_socket::is_connected() const {
+	return is_it_connected;
 }
 
 bool client_socket::is_reading_available() {
@@ -393,7 +399,7 @@ bool client_socket::is_writing_available() {
 }
 
 void client_socket::shutdown_reading() {
-	if (!is_connected) {
+	if (!is_it_connected) {
 		throw socket_exception("client_socket is not connected\n");
 	}
 	if (shutdown(sd.get_sd(), SD_RECEIVE)) {
@@ -402,7 +408,7 @@ void client_socket::shutdown_reading() {
 	}
 }
 void client_socket::shutdown_writing() {
-	if (!is_connected) {
+	if (!is_it_connected) {
 		throw socket_exception("client_socket is not connected\n");
 	}
 	if (shutdown(sd.get_sd(), SD_SEND)) {
@@ -426,7 +432,7 @@ void client_socket::close() {
 		b_to_read = nullptr;
 		b_to_write = nullptr;
 		
-		is_connected = false;
+		is_it_connected = false;
 		is_bound = false;
 		
 		delete GuidConnectEx;
@@ -456,7 +462,7 @@ client_socket& client_socket::operator=(client_socket&& c_s) {
 	b_to_read = c_s.b_to_read;
 	b_to_write = c_s.b_to_write;
 	
-	swap(is_connected, c_s.is_connected);
+	swap(is_it_connected, c_s.is_it_connected);
 	swap(is_bound, c_s.is_bound);
 	
 	swap(GuidConnectEx, c_s.GuidConnectEx);
@@ -484,7 +490,6 @@ void server_socket::on_completion(DWORD transmited_bytes,
 	LOG("in server_socket::on_completion\n");
 	
 	client_socket client(move(real_overlaped->sd));
-	client.is_connected = true;
 	delete real_overlaped;
 	
 	if (error == WSA_OPERATION_ABORTED) {
@@ -497,8 +502,9 @@ void server_socket::on_completion(DWORD transmited_bytes,
 	}
 	if (error != 0) {
 		throw socket_exception("Error in GetQueuedCompletionStatus (in server_socket) : " +
-									to_string(GetLastError()) + "\n");
+									to_string(error) + "\n");
 	}
+	client.is_it_connected = true;
 	((server_socket*)key->get_ptr())->on_accept(move(client));
 }
 

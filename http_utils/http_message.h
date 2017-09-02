@@ -40,6 +40,7 @@ struct http_request : http_message {
 						std::string message_body);
 	int extract_port_number();
 	std::string extract_host();
+	void convert_uri_to_origin_form();
 private:
 	static uri_authority extract_authority(const std::string& uri);
 	static std::string extract_scheme(const std::string& uri);

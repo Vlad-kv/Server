@@ -140,8 +140,10 @@ void getaddrinfo_executer::execute(key_t group_id, std::string pNodeName, std::s
 
 void getaddrinfo_executer::delete_group(key_t group_id) {
 	lock_guard<recursive_mutex> lg(m);
-	groups[group_id]->is_deleted = true;
-	groups.erase(group_id);
+	if (groups.count(group_id) > 0) {
+		groups[group_id]->is_deleted = true;
+		groups.erase(group_id);
+	}
 }
 void getaddrinfo_executer::interrupt() {
 	unique_lock<recursive_mutex> ul(m);

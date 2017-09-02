@@ -22,6 +22,7 @@ using namespace std;
 		if (mess == READING_SHUTDOWNED_ERROR) {\
 			is_reading_shutdowned = true;\
 		}\
+		LOG("in ERROR_CHECK: before on_error(mess)\n");\
 		on_error(mess);\
 		return;\
 	}
@@ -111,10 +112,10 @@ void http_reader::clear() {
 
 void http_reader::on_read_completion(const char* buff, size_t size) {
 	LOG("in http_reader::on_read_completion: size == " << size << "\n");
-	for (size_t w = 0; w < size; w++) {
-		LOG(buff[w]);
-	}
-	LOG("###############################\n");
+//	for (size_t w = 0; w < size; w++) {
+//		LOG(buff[w]);
+//	}
+//	LOG("###############################\n");
 	this->buff = buff;
 	this->readed_bytes = size;
 	

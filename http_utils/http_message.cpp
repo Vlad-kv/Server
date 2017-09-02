@@ -182,6 +182,35 @@ std::string http_request::extract_host() {
 	}
 	return host;
 }
+void http_request::convert_uri_to_origin_form() {
+	if (uri.size() == 0) {
+		uri = "/";
+		return;
+	}
+	if ((uri[0] == '/') || (uri[0] == '*')) {
+		return;
+	}
+	size_t pos = 0;
+	while ((pos < uri.size()) && (uri[pos] != ':')) {
+		pos++;
+	}
+	if (pos == uri.size()) {
+		uri = "/";
+		return;
+	}
+	pos++;
+	if ((uri.size() - pos >= 2) && (uri.substr(pos, 2) == "//")) {
+		pos += 2;
+	}
+	while ((pos < uri.size()) && (uri[pos] != '/')
+			&& (uri[pos] != '?') && (uri[pos] != '#')) {
+		pos++;
+	}
+	uri = uri.substr(pos, uri.size() - pos);
+	if ((uri.size() == 0) || (uri[0] != '/')) {
+		uri = "/" + uri;
+	}
+}
 
 std::vector<char> to_vector(const http_request& req, bool with_body) {
 	vector<char> res;

@@ -30,6 +30,20 @@ int main() {
 		""
 	);
 	
+	http_request test_request(
+		"GET", "http://90.154.106.194/crossdomain.xml", {1, 1}, {
+			{"Accept", "*/*"},
+			{"Accept-Encoding", "gzip, deflate"},
+			{"Accept-Language", "ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4"},
+			{"Host", "90.154.106.194"},
+			{"Proxy-Connection", "keep-alive"},
+			{"Referer", "http://www.ontvtime.ru/general/ort-3.html"},
+			{"User-Agent", "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36"},
+			{"X-Requested-With", "ShockwaveFlash/26.0.0.151"}
+		}, ""
+	);
+	
+	
 	http_reader reader(&client,
 						[&](http_request req) {},
 						[&](http_response req) {
@@ -55,7 +69,7 @@ int main() {
 	
 	client.set_on_connect(
 		[&]() {
-			writer.write_request(get_to_codeforces);
+			writer.write_request(test_request);
 		}
 	);
 	

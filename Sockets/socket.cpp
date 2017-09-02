@@ -22,13 +22,13 @@ abstract_socket* completion_key::get_ptr() const {
 abstract_overlapped::abstract_overlapped(const abstract_socket &this_socket)
 : key(this_socket.key) {
 	if (!this_socket.is_registrated) {
-		throw new socket_exception("socket is not registrated\n");
+		throw socket_exception("socket is not registrated\n");
 	}
 	if ((*this_socket.port_ptr) == nullptr) {
-		throw new socket_exception("IO_completion_port already closed\n");
+		throw socket_exception("IO_completion_port already closed\n");
 	}
 	if ((*this_socket.port_ptr)->is_terminated) {
-		throw new socket_exception("IO_completion_port already terminated\n");
+		throw socket_exception("IO_completion_port already terminated\n");
 	}
 	SecureZeroMemory((PVOID) &overlapped, sizeof(OVERLAPPED));
 }
@@ -148,7 +148,7 @@ void client_socket::init_ConnectEx() {
 		} catch (...) {
 			LOG("Double fail in init_ConnectEx.");
 		}
-		throw new socket_exception("WSAIoctl failed with error : " + to_string(error) + "\n");
+		throw socket_exception("WSAIoctl failed with error : " + to_string(error) + "\n");
 	}
 }
 
@@ -182,8 +182,8 @@ void client_socket::on_completion(DWORD transmited_bytes,
 			real_ptr->execute_on_disconnect();
 			return;
 		}
-		throw new socket_exception("Error in GetQueuedCompletionStatus (in client_socket) : " +
-									to_string(GetLastError()) + "\n");
+		throw socket_exception("Error in GetQueuedCompletionStatus (in client_socket) : " +
+									to_string(error) + "\n");
 	}
 	if (type == recv_send_overlapped::RECV_KEY) {
 		real_ptr->on_read_completion(real_ptr->b_to_read->buffer, transmited_bytes);
@@ -198,12 +198,13 @@ void client_socket::on_completion(DWORD transmited_bytes,
 		if (0 != setsockopt(real_ptr->get_sd(), SOL_SOCKET,
 							SO_UPDATE_CONNECT_CONTEXT, nullptr, 0)) {
 			error = WSAGetLastError();
-			throw new socket_exception("setsockopt failed with error : " + to_string(error) + "\n");
+			throw socket_exception("setsockopt failed with error : " + to_string(error) + "\n");
 		}
 		real_ptr->on_connect();
 		return;
 	}
-	throw new socket_exception("Unknown operation code : " + to_string(type) + "\n");
+	LOG(type << " !!!\n");
+	throw socket_exception("Unknown operation code : " + to_string(type) + "\n");
 }
 
 client_socket::client_socket()
@@ -265,7 +266,7 @@ void client_socket::set_on_disconnect(func_t on_disconnect) {
 
 void client_socket::read_some() {
 	if (b_to_read == nullptr) {
-		throw new socket_exception("previous operation uncompleted\n");
+		throw socket_exception("previous operation uncompleted\n");
 	}
 	DWORD received_bytes;
 	DWORD flags = 0;
@@ -289,7 +290,7 @@ void client_socket::read_some() {
 						b_to_read = (buffer_to_read*)overlapped->release_buff_ptr();
 						delete overlapped;
 						execute_on_disconnect();
-						throw new socket_exception("Error in WSARecv : " + to_string(error) + "\n");
+						throw socket_exception("Error in WSARecv : " + to_string(error) + "\n");
 					}
 	}
 }
@@ -331,13 +332,13 @@ void client_socket::write_some_saved_bytes() {
 						b_to_write = (buffer_to_write*)overlapped->release_buff_ptr();
 						delete overlapped;
 						execute_on_disconnect();
-						throw new socket_exception("Error in WSASend : " + to_string(error) + "\n");
+						throw socket_exception("Error in WSASend : " + to_string(error) + "\n");
 					}
 	}
 }
 size_t client_socket::get_num_of_saved_bytes() {
 	if (b_to_write == nullptr) {
-		throw new socket_exception("write operation is not completed\n");
+		throw socket_exception("write operation is not completed\n");
 	}
 	return b_to_write->get_saved_size();
 }
@@ -349,7 +350,7 @@ void client_socket::connect(short family, const std::string& addr, u_short port)
 }
 void client_socket::connect(short family, unsigned long addr, u_short port) {
 	if (is_connected) {
-		throw new socket_exception("client_socket already connected\n");
+		throw socket_exception("client_socket already connected\n");
 	}
 	sockaddr_in addres;
 	
@@ -360,7 +361,7 @@ void client_socket::connect(short family, unsigned long addr, u_short port) {
 		
 		if (SOCKET_ERROR == ::bind(sd.get_sd(), (SOCKADDR*) &addres, sizeof(addres))) {
 			int error = WSAGetLastError();
-			throw new socket_exception("bind failed with error : " + to_string(error) + "\n");
+			throw socket_exception("bind failed with error : " + to_string(error) + "\n");
 		}
 		is_bound = true;
 	}
@@ -378,7 +379,7 @@ void client_socket::connect(short family, unsigned long addr, u_short port) {
 		int error = WSAGetLastError();
 		if (error != ERROR_IO_PENDING) {
 			delete overlapped;
-			throw new socket_exception("ConnectEx failed with error : " + to_string(error) + "\n");
+			throw socket_exception("ConnectEx failed with error : " + to_string(error) + "\n");
 		}
 	}
 	is_connected = true;
@@ -393,20 +394,20 @@ bool client_socket::is_writing_available() {
 
 void client_socket::shutdown_reading() {
 	if (!is_connected) {
-		throw new socket_exception("client_socket is not connected\n");
+		throw socket_exception("client_socket is not connected\n");
 	}
 	if (shutdown(sd.get_sd(), SD_RECEIVE)) {
 		int error = WSAGetLastError();
-		throw new socket_exception("shutdown failed with error : " + to_string(error) + "\n");
+		throw socket_exception("shutdown failed with error : " + to_string(error) + "\n");
 	}
 }
 void client_socket::shutdown_writing() {
 	if (!is_connected) {
-		throw new socket_exception("client_socket is not connected\n");
+		throw socket_exception("client_socket is not connected\n");
 	}
 	if (shutdown(sd.get_sd(), SD_SEND)) {
 		int error = WSAGetLastError();
-		throw new socket_exception("shutdown failed with error : " + to_string(error) + "\n");
+		throw socket_exception("shutdown failed with error : " + to_string(error) + "\n");
 	}
 }
 
@@ -495,7 +496,7 @@ void server_socket::on_completion(DWORD transmited_bytes,
 		return;
 	}
 	if (error != 0) {
-		throw new socket_exception("Error in GetQueuedCompletionStatus (in server_socket) : " +
+		throw socket_exception("Error in GetQueuedCompletionStatus (in server_socket) : " +
 									to_string(GetLastError()) + "\n");
 	}
 	((server_socket*)key->get_ptr())->on_accept(move(client));
@@ -518,7 +519,7 @@ void server_socket::init_AcceptEx() {
 		} catch (...) {
 			LOG("Double fail in init_AcceptEx.");
 		}
-		throw new socket_exception("WSAIoctl failed with error : " + to_string(error) + "\n");
+		throw socket_exception("WSAIoctl failed with error : " + to_string(error) + "\n");
 	}
 }
 
@@ -559,10 +560,10 @@ void server_socket::bind_and_listen(short address_family, std::string socket_add
 	addres.sin_port = htons(port);
 	
 	if (SOCKET_ERROR == ::bind(sd.get_sd(), (SOCKADDR*)&addres, sizeof(addres))) {
-		throw new socket_exception("bind failed with error " + to_string(WSAGetLastError()) + "\n");
+		throw socket_exception("bind failed with error " + to_string(WSAGetLastError()) + "\n");
 	}
 	if (listen(sd.get_sd(), backlog) == SOCKET_ERROR) {
-		throw new socket_exception("listen failed with error " + to_string(WSAGetLastError()) + "\n");
+		throw socket_exception("listen failed with error " + to_string(WSAGetLastError()) + "\n");
 	}
 }
 
@@ -580,7 +581,7 @@ void server_socket::accept(int address_family, int type, int protocol) {
 		int error = WSAGetLastError();
 		if (error != ERROR_IO_PENDING) {
 			delete overlapped;
-			throw new socket_exception("lpfnAcceptEx failed with error : " + to_string(error) + "\n");
+			throw socket_exception("lpfnAcceptEx failed with error : " + to_string(error) + "\n");
 		}
 	}
 }
@@ -594,7 +595,7 @@ sockaddr_in server_socket::get_sock_address() {
 	int res = getsockname(sd.get_sd(), (sockaddr*)&result, &size);
 	if (res != 0) {
 		int error = WSAGetLastError();
-		throw new socket_exception("getsockname failed with error : " + to_string(error) + "\n");
+		throw socket_exception("getsockname failed with error : " + to_string(error) + "\n");
 	}
 	return result;
 }

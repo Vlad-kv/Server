@@ -85,7 +85,7 @@ bool http_reader::is_last_response_available() {
 }
 http_response http_reader::get_last_response() {
 	if (!is_last_response_available()) {
-		throw new runtime_error("last message not available");
+		throw runtime_error("last message not available");
 	}
 	unique_ptr<http_response> temp = move(forming_server_resp);
 	
@@ -460,7 +460,7 @@ std::pair<std::string, std::string> http_reader::read_header(int &pos) {
 		name.push_back(readed_buff[pos++]);
 	}
 	if ((pos == size) || (name.size() == 0)) {
-		throw new runtime_error("");
+		throw runtime_error("");
 	}
 	pos++;
 	while ((pos < size) && (readed_buff[pos] == ' ')) {
@@ -470,7 +470,7 @@ std::pair<std::string, std::string> http_reader::read_header(int &pos) {
 		value.push_back(readed_buff[pos++]);
 	}
 	if (pos == size) {
-		throw new runtime_error("");
+		throw runtime_error("");
 	}
 	pos += 1;
 	value.pop_back();

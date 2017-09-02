@@ -100,7 +100,7 @@ void IO_completion_port::termination() {
 IO_completion_port::IO_completion_port()
 : iocp_handle(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, 0)) {
 	if (iocp_handle == NULL) {
-		throw new socket_exception("CreateIoCompletionPort failed with error : " + to_string(GetLastError()) + "\n");
+		throw socket_exception("CreateIoCompletionPort failed with error : " + to_string(GetLastError()) + "\n");
 	}
 	is_already_started.clear();
 	to_notify = socket_descriptor(AF_INET, SOCK_STREAM, 0);
@@ -121,7 +121,7 @@ IO_completion_port::IO_completion_port()
 	int res = GetQueuedCompletionStatus(iocp_handle, &transmited_bytes, (LPDWORD)&received_key,
 										(LPOVERLAPPED*)&overlapped, INFINITE);
 	if (res == FALSE) {
-		throw new socket_exception("GetQueuedCompletionStatus failed with error "
+		throw socket_exception("GetQueuedCompletionStatus failed with error "
 										+ to_string(GetLastError()) + "\n");
 	}
 	
@@ -149,7 +149,7 @@ IO_completion_port::IO_completion_port()
 	if (is_interrapted.is_lock_free()) {
 		auto res = signal(SIGINT, signal_handler);
 		if (res == SIG_ERR) {
-			throw new socket_exception("signal failed\n");
+			throw socket_exception("signal failed\n");
 		}
 	} else {
 		LOG("exception handling is not available\n");
@@ -161,24 +161,24 @@ void IO_completion_port::close() {
 		LOG("~~~~~~~~~~~~~\n");
 		BOOL res = CloseHandle(iocp_handle);
 		if (res == 0) {
-			throw new socket_exception("Error in closing completion port : " + to_string(GetLastError()));
+			throw socket_exception("Error in closing completion port : " + to_string(GetLastError()));
 		}
 	}
 }
 
 void IO_completion_port::registrate_socket(abstract_socket& sock) {
 	if (sock.is_registrated) {
-		throw new socket_exception("socket already registrated\n");
+		throw socket_exception("socket already registrated\n");
 	}
 	if (!sock.sd.is_valid()) {
-		throw new socket_exception("socket not valid\n\n");
+		throw socket_exception("socket not valid\n\n");
 	}
 	if (is_terminated) {
-		throw new socket_exception("IO_completion_port already terminated\n");
+		throw socket_exception("IO_completion_port already terminated\n");
 	}
 	HANDLE res = CreateIoCompletionPort((HANDLE)sock.sd.get_sd(), iocp_handle, (ULONG_PTR)&(*sock.key), 0);
 	if (res == NULL) {
-		throw new socket_exception("CreateIoCompletionPort failed with error : " + to_string(GetLastError()) + "\n");
+		throw socket_exception("CreateIoCompletionPort failed with error : " + to_string(GetLastError()) + "\n");
 	}
 	sock.port_ptr = port_ptr;
 	sock.is_registrated = true;
@@ -218,7 +218,7 @@ void IO_completion_port::notify() {
 	int res = send(to_notify.get_sd(), buff_to_notify, 1, 0);
 	if (res == SOCKET_ERROR) {
 		int error = WSAGetLastError();
-		throw new socket_exception("send failed with error : " + to_string(error) + "\n");
+		throw socket_exception("send failed with error : " + to_string(error) + "\n");
 	}
 }
 
@@ -230,7 +230,7 @@ void IO_completion_port::add_task(func_t func) {
 
 void IO_completion_port::start() {
 	if (is_already_started.test_and_set()) {
-		throw new socket_exception("IO_completion_port already started\n");
+		throw socket_exception("IO_completion_port already started\n");
 	}
 	while (!is_interrapted.load()) {
 		{

@@ -118,7 +118,7 @@ void getaddrinfo_executer::execute(key_t group_id, std::string pNodeName, std::s
 				result = nullptr;
 			} else {
 				if (ret_val != 0) {
-					throw new socket_exception("getaddrinfo failed with error : " + to_string(ret_val) + "\n");
+					throw socket_exception("getaddrinfo failed with error : " + to_string(ret_val) + "\n");
 				}
 			}
 			port.add_task(
@@ -170,7 +170,7 @@ getaddrinfo_executer::~getaddrinfo_executer() {
 
 void getaddrinfo_executer::add_new_thread() {
 	if (is_interrupted) {
-		throw new socket_exception("getaddrinfo_executer already interrupted\n");
+		throw socket_exception("getaddrinfo_executer already interrupted\n");
 	}
 	
 	LOG("in getaddrinfo_executer::add_new_thread\n");

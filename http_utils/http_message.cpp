@@ -34,11 +34,11 @@ uri_authority::uri_authority(const std::string &str) {
 		pos++;
 		while (pos < str.size()) {
 			if (!(('0' <= str[pos]) && (str[pos] <= '9'))) {
-				throw new runtime_error("invalid port");
+				throw runtime_error("invalid port");
 			}
 			int new_port = port * 10 + str[pos] - '0';
 			if (new_port / 10 != port) {
-				throw new runtime_error("too big port number");
+				throw runtime_error("too big port number");
 			}
 			port = new_port;
 			pos++;

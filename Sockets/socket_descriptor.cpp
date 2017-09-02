@@ -10,7 +10,7 @@ socket_descriptor::socket_descriptor(int sd)
 socket_descriptor::socket_descriptor(int address_family, int type, int protocol) {
 	sd = socket(address_family, type, protocol);
     if (sd == INVALID_SOCKET) {
-		throw new socket_exception("Socket function failed with error " + to_string(WSAGetLastError()) + "\n");
+		throw socket_exception("Socket function failed with error " + to_string(WSAGetLastError()) + "\n");
 	}
 }
 socket_descriptor::socket_descriptor(socket_descriptor &&other) 
@@ -27,7 +27,7 @@ void socket_descriptor::connect(short family, u_long addr, u_short port) {
 	
 	int res = ::connect(sd, (SOCKADDR *) &addres, sizeof(addres));
 	if (res == SOCKET_ERROR) {
-		throw new socket_exception("Connect function failed with error " + to_string(WSAGetLastError()) + "\n");
+		throw socket_exception("Connect function failed with error " + to_string(WSAGetLastError()) + "\n");
 	}
 }
 
@@ -43,7 +43,7 @@ void socket_descriptor::close() {
 	int res = ::closesocket(sd);
 	sd = INVALID_SOCKET;
 	if (res == -1) {
-		throw new socket_exception("Error when closing sd " + to_string(sd) + " : " + to_string(res) + "\n");
+		throw socket_exception("Error when closing sd " + to_string(sd) + " : " + to_string(res) + "\n");
 	}
 }
 

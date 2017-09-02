@@ -125,7 +125,7 @@ private:
 
 class client_socket : public abstract_socket {
 public:
-	static const size_t DEFAULT_BUFFER_SIZE = 1024;
+	static const size_t DEFAULT_BUFFER_SIZE = 1024 * 4;
 	
 	typedef std::function<void (const char* buff, size_t transmitted_bytes)> func_read_t;
 	typedef std::function<void (size_t saved_bytes, size_t transmitted_bytes)> func_write_t;

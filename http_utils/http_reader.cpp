@@ -111,10 +111,10 @@ void http_reader::clear() {
 
 void http_reader::on_read_completion(const char* buff, size_t size) {
 	LOG("in http_reader::on_read_completion: size == " << size << "\n");
-//	for (size_t w = 0; w < size; w++) {
-//		LOG(buff[w]);
-//	}
-//	LOG("###############################\n");
+	for (size_t w = 0; w < size; w++) {
+		LOG(buff[w]);
+	}
+	LOG("###############################\n");
 	this->buff = buff;
 	this->readed_bytes = size;
 	
@@ -142,7 +142,6 @@ void http_reader::read_main_part() {
 		GET_NEXT_CHAR();
 		readed_buff.push_back(next);
 	}
-	LOG("readed_buff :\n" << readed_buff << " #########\n\n");
 	to_call_on_read_main_part();
 }
 
@@ -367,19 +366,26 @@ void http_reader::read_chunk_size() {
 	bool is_empty = true;
 	
 	while ((('0' <= readed_buff[pos]) && (readed_buff[pos] <= '9')) ||
-		   (('a' <= readed_buff[pos]) && (readed_buff[pos] <= 'f'))) {
+		   (('a' <= readed_buff[pos]) && (readed_buff[pos] <= 'f')) ||
+		   (('A' <= readed_buff[pos]) && (readed_buff[pos] <= 'F'))) {
 		is_empty = false;
 		size_t digit;
 		if (('0' <= readed_buff[pos]) && (readed_buff[pos] <= '9')) {
 			digit = readed_buff[pos] - '0';
 		} else {
-			digit = 10 + readed_buff[pos] - 'a';
+			if (('a' <= readed_buff[pos]) && (readed_buff[pos] <= 'f')) {
+				digit = 10 + readed_buff[pos] - 'a';
+			} else {
+				digit = 10 + readed_buff[pos] - 'A';
+			}
 		}
 		ERROR_CHECK((chunck_size * 16) / 16 != chunck_size, SYNTAX_ERROR);
 		chunck_size = chunck_size * 16 + digit;
 		pos++;
 	}
 	ERROR_CHECK(is_empty, SYNTAX_ERROR);
+	
+	LOG("in read_chunk_size : chunck_size == " << chunck_size << "\n");
 	
 	if (chunck_size == 0) {
 		read_trailer();
@@ -485,5 +491,6 @@ void http_reader::read_line_cycle() {
 		GET_NEXT_CHAR();
 		readed_buff.push_back(next);
 	}
+	LOG("after reading line : " << readed_buff << "\n");
 	to_call_after_reading_line();
 }

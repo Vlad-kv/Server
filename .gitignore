@@ -1,4 +1,10 @@
 */log.txt
+client/res/*
+http_client/res/*
+http_utils/res/*
+Sockets/res/*
+proxy_server/res/*
+echo_server_and_IOCP/res/*
 
 #################
 ## Eclipse

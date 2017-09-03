@@ -40,15 +40,15 @@ private:
 	std::shared_ptr<bool> data_ptr;
 };
 
+const int MAX_TIME_TO_WAIT = 500;
+static_assert(MAX_TIME_TO_WAIT > 0);
+
 class IO_completion_port {
 public:
 	typedef std::function<void ()> func_t;
 private:
 	friend timer;
 	friend struct abstract_overlapped;
-	
-	static const int MAX_TIME_TO_WAIT = 500;
-	static_assert(MAX_TIME_TO_WAIT > 0);
 	
 	HANDLE iocp_handle;
 	std::multiset<timer_holder> timers;

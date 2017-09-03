@@ -19,10 +19,11 @@ public:
 	
 	template<typename client_sock_t>
 	http_reader(client_sock_t *sock, client_callback_t c_f,
-				server_callback_t s_f, on_read_error_t err_f)
+				server_callback_t s_f, on_read_error_t err_f,
+				func_t on_event = []() {})
 	: is_alive(std::make_shared<bool>(true)),
 	  client_callback(std::move(c_f)), server_callback(std::move(s_f)),
-	  on_error(std::move(err_f)) {
+	  on_error(std::move(err_f)), on_event_from_sock(std::move(on_event)) {
 		
 		read_some = [sock](){sock->read_some();};
 		std::shared_ptr<bool> temp(is_alive);
@@ -44,6 +45,7 @@ public:
 	bool is_it_shutdowned();
 	
 	bool is_last_response_available();
+	bool is_no_bytes_where_readed_after_last_completed_message();
 	http_response get_last_response();
 	
 	std::pair<const char*, size_t> get_extra_readed_data();
@@ -95,9 +97,11 @@ private:
 	func_t to_call_on_read_main_part;
 	func_t to_call_on_read_message_body_completion;
 	func_t to_call_after_reading_line;
+	func_t on_event_from_sock;
 	
 	const char *buff = nullptr;
 	size_t readed_bytes = 0;
+	size_t readed_bytes_in_this_message = 0;
 	
 	size_t remaining_length;
 	http_message *where_to_write_message_body;

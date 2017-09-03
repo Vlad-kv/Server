@@ -12,6 +12,7 @@ using namespace std;
 		next = *buff;\
 		buff++;\
 		readed_bytes--;\
+		readed_bytes_in_this_message++;\
 	} else {\
 		read_some();\
 		return;\
@@ -22,7 +23,6 @@ using namespace std;
 		if (mess == READING_SHUTDOWNED_ERROR) {\
 			is_reading_shutdowned = true;\
 		}\
-		LOG("in ERROR_CHECK: before on_error(mess)\n");\
 		on_error(mess);\
 		return;\
 	}
@@ -84,6 +84,9 @@ bool http_reader::is_it_shutdowned() {
 bool http_reader::is_last_response_available() {
 	return reading_until_not_closing;
 }
+bool http_reader::is_no_bytes_where_readed_after_last_completed_message() {
+	return ((readed_bytes_in_this_message == 0) && (readed_bytes == 0));
+}
 http_response http_reader::get_last_response() {
 	if (!is_last_response_available()) {
 		throw runtime_error("last message not available");
@@ -118,17 +121,21 @@ void http_reader::on_read_completion(const char* buff, size_t size) {
 //	LOG("###############################\n");
 	this->buff = buff;
 	this->readed_bytes = size;
-	
 	ERROR_CHECK(size == 0, READING_SHUTDOWNED_ERROR);
+	
+	on_event_from_sock();
+	
 	func_to_call_on_r_comp();
 }
 
 void http_reader::on_read_response_messadge_body_completion() {
 	unique_ptr<http_response> temp_ptr = move(forming_server_resp);
+	readed_bytes_in_this_message = 0;
 	server_callback(move(*temp_ptr));
 }
 void http_reader::on_read_request_messadge_body_completion() {
 	unique_ptr<http_request> temp_ptr = move(forming_client_req);
+	readed_bytes_in_this_message = 0;
 	client_callback(move(*temp_ptr));
 }
 
@@ -386,8 +393,6 @@ void http_reader::read_chunk_size() {
 	}
 	ERROR_CHECK(is_empty, SYNTAX_ERROR);
 	
-	LOG("in read_chunk_size : chunck_size == " << chunck_size << "\n");
-	
 	if (chunck_size == 0) {
 		read_trailer();
 		return;
@@ -492,6 +497,5 @@ void http_reader::read_line_cycle() {
 		GET_NEXT_CHAR();
 		readed_buff.push_back(next);
 	}
-	LOG("after reading line : " << readed_buff << "\n");
 	to_call_after_reading_line();
 }

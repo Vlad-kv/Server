@@ -19,6 +19,8 @@ void http_writer::on_write_completion(size_t saved_bytes, size_t transmitted_byt
 		close();
 		return;
 	}
+	on_event_from_sock();
+	
 	if (saved_bytes > 0) {
 		write_some_saved_bytes();
 		return;

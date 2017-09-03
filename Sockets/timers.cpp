@@ -12,6 +12,9 @@ void timer::unregistrate() {
 	}
 }
 
+timer::timer()
+: on_time_expiration(nullptr) {
+}
 timer::timer(std::chrono::microseconds interval, func_t on_time_expiration)
 : on_time_expiration(on_time_expiration) {
 	this->interval = interval;
@@ -50,7 +53,9 @@ timer& timer::operator=(timer &&t) {
 	port = t.port;
 	
 	t.unregistrate();
-	port->registrate_timer(*this);
+	if (port != nullptr) {
+		port->registrate_timer(*this);
+	}
 	return *this;
 }
 timer::~timer() {

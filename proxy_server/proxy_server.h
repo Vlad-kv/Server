@@ -6,6 +6,8 @@
 #include "../Sockets/sockets.h"
 #include "../http_utils/http_utils.h"
 
+const std::chrono::milliseconds TIMEOUT = std::chrono::milliseconds(3000);
+
 class proxy_server : public abstract_server {
 public:
 	struct client_data {
@@ -14,6 +16,8 @@ public:
 		void init_server_part(proxy_server *this_server);
 		
 		void reset_server(proxy_server *this_server);
+		
+		timer t;
 		
 		client_socket_2 client;
 		std::unique_ptr<http_reader> client_reader;
@@ -36,6 +40,8 @@ public:
 		bool to_write_server_req_and_delete = false;
 		bool to_delete = false;
 		bool to_delete_on_empty_server_responses = false;
+		
+		bool is_timer_expired_at_past = false;
 		
 		bool is_reading_from_client_shutdowned = false;
 	};
@@ -68,6 +74,9 @@ private:
 	
 	void getaddrinfo_callback(client_data &data, addrinfo *info, int port);
 	void on_connect_completion(client_data &data);
+	
+	void on_event_from_socket(client_data &data);
+	void on_timer_expiration(client_data &data);
 	
 	void delete_client_data(client_data &data);
 	

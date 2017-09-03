@@ -12,9 +12,10 @@ public:
 	typedef std::function<void ()> func_t;
 	
 	template<typename client_sock_t>
-	http_writer(client_sock_t *sock, func_t f, func_t on_writing_shutdown)
-	: is_alive(std::make_shared<bool>(true)), callback(move(f)),
-	  on_writing_shutdown(on_writing_shutdown) {
+	http_writer(client_sock_t *sock, func_t f, func_t on_writing_shutdown, func_t on_event = []() {})
+	: is_alive(std::make_shared<bool>(true)), callback(std::move(f)),
+	  on_writing_shutdown(on_writing_shutdown),
+	  on_event_from_sock(std::move(on_event)) {
 	  	
 		write_some = [sock](const char* buff, size_t size) {
 			sock->write_some(buff, size);
@@ -54,6 +55,7 @@ private:
 	
 	func_t callback;
 	func_t on_writing_shutdown;
+	func_t on_event_from_sock;
 	bool is_writing_not_completed = false;
 	
 	std::function<void (const char* buff, size_t size)> write_some;

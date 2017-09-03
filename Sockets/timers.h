@@ -26,7 +26,7 @@ class timer {
 	// то timer не находится в ожидании, но может возродиться через restart.
 	
 public:
-	
+	timer();
 	timer(std::chrono::microseconds interval, func_t on_time_expiration);
 	timer(timer &&t);
 	

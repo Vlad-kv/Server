@@ -5,16 +5,21 @@ using namespace std;
 
 proxy_server::client_data::client_data(proxy_server *this_server, client_socket_2 &&client_s)
 : client(move(client_s)), server(AF_INET, SOCK_STREAM, 0) {
+	t = timer(TIMEOUT, [this_server, this](timer *t) {this_server->on_timer_expiration(*this);});
+	this_server->registrate_timer(t);
+	
 	client.set_on_disconnect([this_server, this]() {this_server->on_client_disconnect(*this);});
 	
 	client_reader = make_unique<http_reader>(&this->client,
 		[this_server, this](http_request req) {this_server->on_client_request_reading_completion(*this, move(req));},
 		[this_server, this](http_response req) {throw new runtime_error("server_http_request from client_reader");},
-		[this_server, this](int error) {this_server->on_read_error_from_client(*this, error);}
+		[this_server, this](int error) {this_server->on_read_error_from_client(*this, error);},
+		[this_server, this]() {this_server->on_event_from_socket(*this);}
 	);
 	client_writer = make_unique<http_writer>(&this->client,
 		[this_server, this]() {this_server->on_server_response_writing_completion(*this);},
-		[this_server, this]() {this_server->on_writing_shutdowning_from_client(*this);}
+		[this_server, this]() {this_server->on_writing_shutdowning_from_client(*this);},
+		[this_server, this]() {this_server->on_event_from_socket(*this);}
 	);
 	init_server_part(this_server);
 }
@@ -31,7 +36,8 @@ void proxy_server::client_data::init_server_part(proxy_server *this_server) {
 			if (!is_server_now_reseting) {
 				this_server->on_read_error_from_server(*this, error);
 			}
-		}
+		},
+		[this_server, this]() {this_server->on_event_from_socket(*this);}
 	);
 	server_writer = make_unique<http_writer>(&this->server,
 		[this_server, this]() {this_server->on_client_request_writing_completion(*this);},
@@ -39,7 +45,8 @@ void proxy_server::client_data::init_server_part(proxy_server *this_server) {
 			if (!is_server_now_reseting) {
 				this_server->on_writing_shutdowning_from_server(*this);
 			}
-		}
+		},
+		[this_server, this]() {this_server->on_event_from_socket(*this);}
 	);
 	this_server->registrate_socket(server);
 }
@@ -149,9 +156,15 @@ void proxy_server::notify_client_about_error(client_data &data, int status_code,
 		return;
 	}
 	LOG("in notify_client_about_error : " << status_code << " " << reason_phrase << "\n");
-	data.client_reader->close();
-	data.server_reader->close();
-	data.server_writer->close();
+	if (data.client_reader != nullptr) {
+		data.client_reader->close();
+	}
+	if (data.server_reader != nullptr) {
+		data.server_reader->close();
+	}
+	if (data.server_writer != nullptr) {
+		data.server_writer->close();
+	}
 	
 	if (!data.client_writer->is_previous_request_completed()) {
 		data.to_write_server_req_and_delete = true;
@@ -213,7 +226,6 @@ void proxy_server::on_client_request_reading_completion(client_data &data, http_
 	}
 }
 void proxy_server::on_read_error_from_client(client_data &data, int error) {
-	LOG("in on_read_error_from_client !!!!!!!!!!!!!!!!!!!!!!!!\n");
 	if (error == http_reader::READING_SHUTDOWNED_ERROR) {
 		LOG("in proxy_server::on_read_error_from_client : READING_SHUTDOWNED_ERROR\n");
 		data.is_reading_from_client_shutdowned = true;
@@ -283,9 +295,15 @@ void proxy_server::on_read_error_from_server(client_data &data, int error) {
 			on_server_response_reading_completion(data,
 						move(data.server_reader->get_last_response()));
 			data.to_delete_on_empty_server_responses = true;
-			return;
+		} else {
+			if ((data.server_reader->is_no_bytes_where_readed_after_last_completed_message()) && 
+				(data.num_of_responses_to_read_from_server == 0)) {
+				
+				data.to_delete_on_empty_server_responses = true;
+			} else {
+				notify_client_about_error(data, 502, "Bad Gateway");
+			}
 		}
-		notify_client_about_error(data, 502, "Bad Gateway");
 		return;
 	}
 	assert(0); // unknown error code
@@ -346,6 +364,26 @@ void proxy_server::on_connect_completion(client_data &data) {
 	write_to_server(data);
 }
 
+void proxy_server::on_event_from_socket(client_data &data) {
+	data.t.restart();
+}
+void proxy_server::on_timer_expiration(client_data &data) {
+	if (!data.is_timer_expired_at_past) {
+		cout << "timer expired\n";
+		data.is_timer_expired_at_past = true;
+		data.t.restart();
+		if (data.client_writer == nullptr) { 
+			cout << "              expired in tunnel\n";
+			delete_client_data(data);
+			return;
+		}
+		notify_client_about_error(data, 504, "Gateway Timeout");
+	} else {
+		cout << "timer expited at second time\n";
+		delete_client_data(data);
+	}
+}
+
 void proxy_server::delete_client_data(client_data &data) {
 	if (!is_interrupted) {
 		long long id = data.client.get_id();
@@ -375,6 +413,7 @@ void proxy_server::establish_tunnel(client_data &data) {
 	data.client.set_on_disconnect([this, &data]() {this->delete_client_data(data);});
 	data.client.set_on_read_completion(
 		[&data](const char* buff, size_t size) {
+			data.t.restart();
 			if (size > 0) {
 				data.server.write_some(buff, size);
 			} else {
@@ -384,6 +423,7 @@ void proxy_server::establish_tunnel(client_data &data) {
 	);
 	data.client.set_on_write_completion(
 		[&data](size_t saved_bytes, size_t transmitted_bytes) {
+			data.t.restart();
 			if (transmitted_bytes == 0) {
 				data.client.execute_on_disconnect();
 				return;
@@ -399,6 +439,7 @@ void proxy_server::establish_tunnel(client_data &data) {
 	data.server.set_on_disconnect([this, &data]() {this->delete_client_data(data);});
 	data.server.set_on_read_completion(
 		[&data](const char* buff, size_t size) {
+			data.t.restart();
 			if (size == 0) {
 				data.client.execute_on_disconnect();
 				return;
@@ -408,6 +449,7 @@ void proxy_server::establish_tunnel(client_data &data) {
 	);
 	data.server.set_on_write_completion(
 		[&data](size_t saved_bytes, size_t transmitted_bytes) {
+			data.t.restart();
 			if (transmitted_bytes == 0) {
 				data.client.shutdown_reading();
 				return;

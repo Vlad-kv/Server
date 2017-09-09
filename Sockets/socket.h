@@ -17,10 +17,6 @@ struct abstract_overlapped;
 #include "socket_descriptor.h"
 #include "IO_completion_port.h"
 
-/**
-	
-*/
-
 class completion_key {
 public:
 	friend class abstract_socket;
@@ -48,6 +44,8 @@ struct abstract_overlapped {
 	typedef completion_key::key_ptr key_ptr;
 	
 	abstract_overlapped(const abstract_socket &this_socket);
+	
+	~abstract_overlapped();
 public:
 	OVERLAPPED overlapped;
 private:
@@ -118,6 +116,7 @@ public:
 	void reset();
 	void write_to_buffer(const char *buff, size_t size);
 	
+	~buffer_to_write();
 private:
 	size_t start_pos;
 	std::vector<char> buffer;

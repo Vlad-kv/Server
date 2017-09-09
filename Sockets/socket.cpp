@@ -32,6 +32,8 @@ abstract_overlapped::abstract_overlapped(const abstract_socket &this_socket)
 	}
 	SecureZeroMemory((PVOID) &overlapped, sizeof(OVERLAPPED));
 }
+abstract_overlapped::~abstract_overlapped() {
+}
 
 abstract_socket::abstract_socket(on_comp_t f)
 : key(make_shared<completion_key>(this, f)) {
@@ -128,6 +130,8 @@ void buffer_to_write::write_to_buffer(const char *buff, size_t size) {
 		buffer.push_back(buff[w]);
 	}
 }
+buffer_to_write::~buffer_to_write() {
+}
 
 ///------------------------------------------
 
@@ -163,6 +167,17 @@ void client_socket::on_completion(DWORD transmited_bytes,
 	client_socket *real_ptr = (client_socket*)key->get_ptr();
 	if (real_ptr == nullptr) {
 		LOG("socket already closed.");
+		if (type == recv_send_overlapped::RECV_KEY) {
+			delete (buffer_to_read*)buff_ptr;
+			return;
+		}
+		if (type == recv_send_overlapped::SEND_KEY) {
+			delete (buffer_to_write*)buff_ptr;
+			return;
+		}
+		if (buff_ptr != nullptr) {
+			throw socket_exception("invalid state in client_socket::on_completion\n");
+		}
 		return;
 	}
 	if (type == recv_send_overlapped::RECV_KEY) {

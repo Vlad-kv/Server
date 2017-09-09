@@ -5,7 +5,7 @@
 #include <windows.h>
 #include <set>
 #include <atomic>
-#include <vector>
+#include <list>
 #include <mutex>
 #include <queue>
 #include <memory>
@@ -35,9 +35,10 @@ public:
 	registration();
 	~registration();
 private:
-	registration(std::shared_ptr<bool> data_ptr);
+	registration(std::shared_ptr<IO_completion_port*> comp_port_ptr, std::list<std::function<void ()>>::iterator on_interrupt_f_it);
 	
-	std::shared_ptr<bool> data_ptr;
+	std::shared_ptr<IO_completion_port*> comp_port_ptr;
+	std::list<std::function<void ()>>::iterator on_interrupt_f_it;
 };
 
 const int MAX_TIME_TO_WAIT = 500;
@@ -49,6 +50,7 @@ public:
 private:
 	friend timer;
 	friend struct abstract_overlapped;
+	friend class registration;
 	
 	HANDLE iocp_handle;
 	std::multiset<timer_holder> timers;
@@ -58,7 +60,7 @@ private:
 	static std::atomic_bool is_interrapted;
 	bool is_terminated = false;
 	std::atomic_flag is_already_started;
-	std::vector<func_t> on_interrupt_f;
+	std::list<func_t> on_interrupt_f;
 	std::queue<func_t> tasks;
 	std::mutex m;
 	

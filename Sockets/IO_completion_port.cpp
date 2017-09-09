@@ -15,21 +15,24 @@ timer_holder::timer_holder(timer *t)
 
 ///---------------------------
 registration& registration::operator=(registration &&reg) {
-	data_ptr = move(reg.data_ptr);
+	comp_port_ptr = move(reg.comp_port_ptr);
+	on_interrupt_f_it = move(reg.on_interrupt_f_it);
 	return *this;
 }
 registration::registration()
-: data_ptr(nullptr) {
+: on_interrupt_f_it(nullptr) {
 }
 registration::registration(registration &&reg)
-: data_ptr(move(reg.data_ptr)) {
+: comp_port_ptr(move(reg.comp_port_ptr)), on_interrupt_f_it(move(reg.on_interrupt_f_it)) {
 }
-registration::registration(std::shared_ptr<bool> data_ptr)
-: data_ptr(data_ptr) {
+registration::registration(std::shared_ptr<IO_completion_port*> comp_port_ptr, std::list<std::function<void ()>>::iterator on_interrupt_f_it)
+: comp_port_ptr(comp_port_ptr), on_interrupt_f_it(on_interrupt_f_it) {
 }
 registration::~registration() {
-	if (data_ptr != nullptr) {
-		*data_ptr = false;
+	if (comp_port_ptr != nullptr) {
+		if ((*comp_port_ptr) != nullptr) {
+			(*comp_port_ptr)->on_interrupt_f.erase(on_interrupt_f_it);
+		}
 	}
 }
 ///---------------------------
@@ -81,7 +84,6 @@ void IO_completion_port::termination() {
 	while (timers.size() > 0) {
 		(*timers.begin()).t->unregistrate();
 	}
-	
 	for (func_t &f : on_interrupt_f) {
 		try {
 			f();
@@ -98,7 +100,7 @@ void IO_completion_port::termination() {
 }
 
 IO_completion_port::IO_completion_port()
-: iocp_handle(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, 0)) {
+: iocp_handle(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0)) {
 	if (iocp_handle == NULL) {
 		throw socket_exception("CreateIoCompletionPort failed with error : " + to_string(GetLastError()) + "\n");
 	}
@@ -191,21 +193,19 @@ void IO_completion_port::registrate_timer(timer& t) {
 	notify();
 }
 registration IO_completion_port::registrate_on_interruption_event(func_t func) {
-	shared_ptr<bool> is_registration_alive = make_shared<bool>(true);
+	if (is_interrapted.load() == true) {
+		throw socket_exception("IO_completion_port already interrupted\n");
+	}
 	on_interrupt_f.push_back(
-		[is_registration_alive, func]() {
-			if (*is_registration_alive) {
-				try {
-					func();
-				} catch (...) {
-					LOG("Exception in interruption_event\n");
-				}
-			} else {
-				LOG("Registration is invalid\n");
+		[func]() {
+			try {
+				func();
+			} catch (...) {
+				LOG("Exception in interruption_event\n");
 			}
 		}
 	);
-	return registration(is_registration_alive);
+	return registration(port_ptr, (--on_interrupt_f.end()));
 }
 
 void IO_completion_port::interrupt() {

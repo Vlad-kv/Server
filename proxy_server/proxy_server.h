@@ -6,7 +6,7 @@
 #include "../Sockets/sockets.h"
 #include "../http_utils/http_utils.h"
 
-const std::chrono::milliseconds TIMEOUT = std::chrono::milliseconds(3000);
+const std::chrono::milliseconds TIMEOUT = std::chrono::milliseconds(5000);
 
 class proxy_server : public abstract_server {
 public:

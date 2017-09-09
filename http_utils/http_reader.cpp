@@ -55,7 +55,7 @@ void http_reader::read_client_request() {
 	
 	forming_client_req = make_unique<http_request>();
 	
-	to_call_on_read_main_part = [this]() {parse_request_main_patr();};
+	to_call_on_read_main_part = [this]() {parse_request_main_part();};
 	readed_buff.clear();
 	
 	read_main_part();
@@ -153,8 +153,8 @@ void http_reader::read_main_part() {
 	to_call_on_read_main_part();
 }
 
-void http_reader::parse_request_main_patr() {
-	cout << "in http_reader::parse_request_main_patr\n";
+void http_reader::parse_request_main_part() {
+	cout << "in http_reader::parse_request_main_part\n";
 	int pos = 0, size = readed_buff.size();
 	while ((pos < size) && (readed_buff[pos] != ' ')) {
 		forming_client_req->method.push_back(readed_buff[pos++]);

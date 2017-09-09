@@ -1,5 +1,6 @@
 #include "logger.h"
 
+const bool _LOG_TO_CONSOLE = 0;
 std::mutex _log_mutex;
 
 void clear_log_file() {

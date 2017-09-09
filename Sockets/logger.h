@@ -8,12 +8,18 @@
 
 extern std::mutex _log_mutex;
 
-#define LOG(s) \
+extern const bool _LOG_TO_CONSOLE;
+
+#define LOG(s)\
 	{\
 		std::lock_guard<std::mutex> _LOG_lg(_log_mutex);\
-		std::ofstream out("log.txt", std::ios_base::app);\
-		out << s;\
-		out.close();\
+		if (!_LOG_TO_CONSOLE) {\
+			std::ofstream out("log.txt", std::ios_base::app);\
+			out << s;\
+			out.close();\
+		} else {\
+			std::cout << s;\
+		}\
 	}
 
 void clear_log_file();

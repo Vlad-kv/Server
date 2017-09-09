@@ -60,7 +60,7 @@ private:
 	void read_line(func_t to_call);
 	void read_line_cycle();
 	
-	void parse_request_main_patr();
+	void parse_request_main_part();
 	void parse_response_main_patr();
 	
 	void read_message_body(http_message &mess);

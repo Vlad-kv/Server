@@ -52,7 +52,7 @@ public:
 						 size_t max_number_of_threads,
 						 size_t max_number_of_threads_per_group);
 	
-	void execute(key_t group_id, std::string pNodeName, std::string pServiceName, const ADDRINFO &pHints, callback_t task);
+	void execute(key_t group_id, std::string pNodeName, std::string pServiceName, const ADDRINFO &pHints, callback_t task, func_t on_error_callback);
 	void delete_group(key_t group_id);
 	void interrupt();
 	

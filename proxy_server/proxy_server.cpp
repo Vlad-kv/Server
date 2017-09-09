@@ -138,7 +138,8 @@ void proxy_server::write_to_server(client_data &data) {
 		hints.ai_protocol = IPPROTO_TCP;
 		
 		executer.execute(data.client.get_id(), host, to_string(port), hints,
-			[&data, this, port](addrinfo *info) {getaddrinfo_callback(data, info, port);}
+			[&data, this, port](addrinfo *info) {getaddrinfo_callback(data, info, port);},
+			[&data, this]() {on_error_in_getaddrinfo(data);}
 		);
 	}
 }
@@ -165,19 +166,20 @@ void proxy_server::notify_client_about_error(client_data &data, int status_code,
 	if (data.server_writer != nullptr) {
 		data.server_writer->close();
 	}
-	
+	http_response resp({1, 1}, status_code, reason_phrase, {
+			{"Connection", "Closed"},
+			{"Content-length", "0"}}, {}
+	);
 	if (!data.client_writer->is_previous_request_completed()) {
 		data.to_write_server_req_and_delete = true;
 		while (!data.server_responses.empty()) {
 			data.server_responses.pop();
 		}
-		data.server_responses.push(http_response({1, 1}, status_code, reason_phrase, {}, {}));
+		data.server_responses.push(move(resp));
 		return;
 	}
 	
-	data.client_writer->write_request(
-		http_response({1, 1}, status_code, reason_phrase, {}, {})
-	);
+	data.client_writer->write_request(move(resp));
 	data.to_delete = true;
 }
 
@@ -358,6 +360,11 @@ void proxy_server::getaddrinfo_callback(client_data &data, addrinfo *info, int p
 		notify_client_about_error(data, 503, "Service Unavailable");
 		return;
 	}
+}
+void proxy_server::on_error_in_getaddrinfo(client_data &data) {
+	cout << "in on_error_in_getaddrinfo\n";
+	LOG("in on_error_in_getaddrinfo\n");
+	notify_client_about_error(data, 502, "Bad Gateway");
 }
 void proxy_server::on_connect_completion(client_data &data) {
 	data.is_previous_connect_completed = true;

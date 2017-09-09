@@ -96,7 +96,7 @@ getaddrinfo_executer::getaddrinfo_executer(IO_completion_port &port,
 	}
 }
 
-void getaddrinfo_executer::execute(key_t group_id, std::string pNodeName, std::string pServiceName, const ADDRINFO &pHints, callback_t task) {
+void getaddrinfo_executer::execute(key_t group_id, std::string pNodeName, std::string pServiceName, const ADDRINFO &pHints, callback_t task, func_t on_error_callback) {
 	lock_guard<recursive_mutex> lg(m);
 	
 	if (groups.count(group_id) == 0) {
@@ -105,34 +105,42 @@ void getaddrinfo_executer::execute(key_t group_id, std::string pNodeName, std::s
 	group_ptr group = groups[group_id];
 	
 	group->group_tasks.push(
-		[task, this, group, pNodeName, pServiceName, pHints]() {
-			addrinfo *result = nullptr;
-			
-			auto point_1 = chrono::steady_clock::now();
-			int ret_val = getaddrinfo(&pNodeName[0], &pServiceName[0], &pHints, &result);
-			auto point_2 = chrono::steady_clock::now();
-			
-			LOG("time : " << chrono::duration_cast<chrono::milliseconds>(point_2 - point_1).count() << "\n");
-			
-			if (ret_val == WSAHOST_NOT_FOUND) {
-				result = nullptr;
-			} else {
-				if (ret_val != 0) {
-					throw socket_exception("getaddrinfo failed with error : " + to_string(ret_val) + "\n");
+		[task, this, group, pNodeName, pServiceName, pHints, on_error_callback]() {
+			try {
+				addrinfo *result = nullptr;
+				
+				auto point_1 = chrono::steady_clock::now();
+				int ret_val = getaddrinfo(&pNodeName[0], &pServiceName[0], &pHints, &result);
+				auto point_2 = chrono::steady_clock::now();
+				
+				LOG("time : " << chrono::duration_cast<chrono::milliseconds>(point_2 - point_1).count() << "\n");
+				
+				if (ret_val == WSAHOST_NOT_FOUND) {
+					result = nullptr;
+				} else {
+					if (ret_val != 0) {
+						throw socket_exception("getaddrinfo failed with error : " + to_string(ret_val) + "\n");
+					}
+				}
+				port.add_task(
+					[task, group, result]() {
+						try {
+							if (!group->is_deleted) {
+								task(result);
+							}
+						} catch (...) {
+							LOG("Exception in callback in getaddrinfo_executer::execute");
+						}
+						freeaddrinfo(result);
+					}
+				);
+			} catch (...) {
+				try {
+					on_error_callback();
+				} catch (...) {
+					LOG("double fail in getaddrinfo_executer::execute\n");
 				}
 			}
-			port.add_task(
-				[task, group, result]() {
-					try {
-						if (!group->is_deleted) {
-							task(result);
-						}
-					} catch (...) {
-						LOG("Exception in callback in getaddrinfo_executer::execute");
-					}
-					freeaddrinfo(result);
-				}
-			);
 		}
 	);
 	move_tasks_to_main_queue(group);

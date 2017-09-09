@@ -39,6 +39,7 @@ public:
 		my_assert(!*is_alive, "http_writer already closed\n");
 		
 		std::vector<char> temp_v = to_vector(req);
+		
 		is_writing_not_completed = true;
 		write_some(&temp_v[0], temp_v.size());
 	}

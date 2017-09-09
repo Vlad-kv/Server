@@ -73,6 +73,7 @@ private:
 	void on_server_disconnect(client_data &data);
 	
 	void getaddrinfo_callback(client_data &data, addrinfo *info, int port);
+	void on_error_in_getaddrinfo(client_data &data);
 	void on_connect_completion(client_data &data);
 	
 	void on_event_from_socket(client_data &data);
